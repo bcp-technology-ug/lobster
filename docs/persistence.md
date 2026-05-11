@@ -161,7 +161,7 @@ Default retention behavior:
 
 - keep 500 runs and 90 days of run metadata and detailed step data by default
 - allow configurable retention windows by age and count
-- support explicit cleanup command behavior in future CLI surface
+- support explicit cleanup command behavior in a future CLI or admin maintenance surface, once that command contract is defined
 
 Event stream retention default:
 
@@ -179,6 +179,7 @@ Current baseline:
 Future parallelism:
 
 - schema and query patterns must be reviewed before enabling higher write concurrency.
+- any move beyond serial scenario execution needs an explicit lock-contention strategy, write-queue policy, and retention-job interaction model.
 - long-running write transactions should be minimized.
 
 Scope note:

@@ -14,7 +14,7 @@ Source of truth policy:
 - Preserve Lobster as CLI-first while enabling remote execution on a stronger host.
 - Keep one behavior model across local and remote execution modes.
 - Support both synchronous streaming runs and asynchronous job workflows.
-- Keep transport contracts versioned and backward-compatible within a minor line.
+- Keep transport contracts versioned, with stricter backward-compatibility expectations after v1.0.
 
 ## Company standard alignment
 
@@ -127,13 +127,14 @@ Required rules:
 ## Versioning
 
 - Proto packages must be versioned (example: `lobster.v1.run`).
-- Breaking changes require a new major proto package.
+- Before v1.0, breaking changes may be introduced in minor releases when they are clearly documented.
+- After v1.0, breaking changes require a new major proto package.
 - Additive fields and RPCs are allowed in the same major package.
 - Deprecated fields and RPCs must remain supported for at least one minor release before removal.
 
 Breaking-change cadence rule:
 
-- breaking contract changes trigger an immediate new major package rather than batching breaks on a schedule.
+- once Lobster reaches v1.0, breaking contract changes trigger an immediate new major package rather than batching breaks on a schedule.
 
 ## Service model
 

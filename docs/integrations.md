@@ -72,6 +72,8 @@ Lobster can support additional adapters using the same pattern:
 
 - v0.1: adapters are registered statically through the build.
 - v0.2 target: runtime adapter loading through RPC plugin infrastructure.
+- The runtime loader must preserve the same explicit compatibility and redaction rules as static registration.
+- Static registration remains the deterministic fallback path if a runtime-loaded adapter fails validation or negotiation.
 
 Transport contract direction:
 

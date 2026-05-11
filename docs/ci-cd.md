@@ -129,6 +129,8 @@ Required dogfooding checks in CI:
 - integration suites must be executed by the candidate `./bin/lobster` binary
 - E2E suites must be executed by the candidate `./bin/lobster` binary
 - failures in self-hosted suites block merge
+- at least one cross-mode contract suite must cover the same logical flow in local mode and daemon mode when both are available
+- contract parity failures between local and daemon execution paths must block merge
 
 Remote security baseline in CI:
 
@@ -228,5 +230,7 @@ Suggested semantics:
 Release and compatibility notes:
 
 - Maintain `stable` and `nightly` release channels.
-- Before v1.0, minor versions may include breaking changes; communicate clearly in release notes.
-- Deprecations should produce runtime warnings and document target removal versions.
+- Before v1.0, minor versions may include breaking changes; communicate clearly in release notes and changelogs.
+- After v1.0, breaking changes must move to a new major version.
+- Before v1.0, deprecations should still be called out in release notes and changelogs when practical.
+- After v1.0, deprecations should produce runtime warnings and document target removal versions.

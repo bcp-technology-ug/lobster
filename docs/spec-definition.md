@@ -110,7 +110,8 @@ Before merge:
 
 - Lobster core maintainers own contract approval.
 - Contract changes require explicit changelog entries.
-- Breaking removals require at least one minor release of deprecation before removal.
+- Before v1.0, contract removals may be made in a breaking release when clearly documented.
+- After v1.0, breaking removals require at least one minor release of deprecation before removal.
 - Contract governance follows the dual-development model: internal BCP and public GitHub changes are maintained in the same codebase and changelog stream.
 
 PR governance:

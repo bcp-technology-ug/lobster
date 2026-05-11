@@ -32,7 +32,7 @@ Note:
 
 Lobster follows a contract-first workflow aligned with company backend standards.
 
-Recommended project-level commands:
+Canonical project-level commands:
 
 - make generate: regenerate proto and sqlc artifacts
 - make proto: regenerate proto-derived artifacts only
@@ -40,14 +40,14 @@ Recommended project-level commands:
 - make lint-proto: run buf lint checks
 - make break-proto: run buf breaking checks against main
 
-These commands are expected to keep generated artifacts and compatibility checks in sync with source contracts.
+These commands are the primary supported workflow for local development and CI. They should be kept in sync with the source contracts and used instead of ad hoc direct generation commands.
 
 Why this matters:
 
 - it keeps local mode and daemon mode aligned on the same shape for requests, responses, and validation
 - it makes contract drift visible at generation time and in buf breaking checks, rather than only at runtime
 
-If the repository does not yet expose these make targets, run equivalent direct commands in CI and local workflows (for example, buf generate, sqlc generate, buf lint, and buf breaking).
+If a make target is missing, treat that as a repository gap to fix rather than the preferred long-term workflow.
 
 ## lobster init
 
