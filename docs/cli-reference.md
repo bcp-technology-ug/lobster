@@ -10,6 +10,11 @@ This document describes the planned lobster CLI commands, flags, and examples.
 - Daemon mode executes through a remote API endpoint.
 - Output targets CLI and CI readability first.
 
+Contract note:
+
+- Even in local mode, the CLI should use the same generated proto request and response types as daemon mode.
+- Local execution is an in-process implementation of the same service contract, not a separate ad hoc API.
+
 ## Command overview
 
 - lobster init: scaffold a new lobster test project
@@ -36,6 +41,11 @@ Recommended project-level commands:
 - make break-proto: run buf breaking checks against main
 
 These commands are expected to keep generated artifacts and compatibility checks in sync with source contracts.
+
+Why this matters:
+
+- it keeps local mode and daemon mode aligned on the same shape for requests, responses, and validation
+- it makes contract drift visible at generation time and in buf breaking checks, rather than only at runtime
 
 If the repository does not yet expose these make targets, run equivalent direct commands in CI and local workflows (for example, buf generate, sqlc generate, buf lint, and buf breaking).
 

@@ -68,6 +68,7 @@ Runtime behavior:
 - validation is applied before service business logic
 - validation failures return structured field-level details
 - service code must not duplicate basic shape validation already defined in proto
+- local-mode service implementations must apply the same validation rules as the gRPC server entrypoint
 
 ## Pagination defaults
 
@@ -111,6 +112,17 @@ Lobster exposes one logical API through multiple client surfaces:
 - HTTP client via gRPC-Gateway
 
 All surfaces map to the same server-side behavior.
+
+## Local execution parity
+
+Local CLI execution is not a separate contract. It must still use the same generated proto messages, request validation, and service boundaries as daemon-backed execution.
+
+Required rules:
+
+- CLI code constructs requests from generated `lobster.v1` types only.
+- Local mode calls the same service contracts that the daemon exposes, using an in-process implementation behind that interface.
+- Proto validation is enforced before business logic in both local and remote paths.
+- buf breaking checks keep the proto contract stable across releases.
 
 ## Versioning
 

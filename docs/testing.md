@@ -34,6 +34,7 @@ Scope:
 - interactions across multiple internal components
 - compose lifecycle and readiness handling
 - API contract behavior at service boundaries
+- parity between local execution and daemon-backed execution for the same request/response shapes
 
 Typical location:
 
@@ -81,6 +82,11 @@ Recommended CI flow:
 2. run Go unit tests
 3. run Lobster-driven integration suites with candidate `lobster`
 4. run Lobster-driven E2E suites with candidate `lobster`
+
+Contract coverage note:
+
+- add at least one integration scenario that exercises the same logical operation through local mode and daemon mode when both are available
+- prefer tests that construct generated proto request types so contract drift is caught by compile errors and behavior checks
 
 Example candidate-binary flow:
 

@@ -56,6 +56,9 @@ Design rules:
 - CLI remains the primary workflow entrypoint in both modes.
 - Wish is an additional client surface, not a separate backend.
 - Sync streaming and async job runs are both first-class server capabilities.
+- Local mode still uses the same proto-generated request and response types as daemon mode.
+- Local execution must go through the same service interface boundary as remote execution, with a local in-process implementation behind that interface.
+- Validation rules live in proto and are enforced before business logic in both modes.
 
 ## Primary components
 
@@ -214,6 +217,8 @@ Service API strategy:
 - Capability negotiation allows clients to adapt to optional server features.
 - Proto contracts include explicit HTTP annotations for gateway generation.
 - Validation rules are defined in proto and enforced by shared validation middleware.
+- CLI code should build requests from generated proto types only; it should not define separate local-only DTOs.
+- Local mode should call the same service contracts as daemon mode, which keeps API drift visible at compile time and in contract tests.
 
 See docs/api-reference.md for transport contract details.
 
@@ -244,6 +249,11 @@ Access policy:
 
 - local mode: CLI may read/write SQLite directly.
 - daemon mode: daemon is the single writer; clients access state only through API.
+
+Contract policy:
+
+- local execution is still bound to the same service contract as daemon execution
+- local implementations may write directly only after request validation passes through the shared proto contract
 
 See docs/persistence.md for schema ownership, migration policy, retention, and compatibility rules.
 
