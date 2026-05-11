@@ -1,0 +1,1274 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: ""
+    version: 0.0.1
+paths:
+    /api/v1/admin/capabilities:
+        get:
+            tags:
+                - AdminService
+            operationId: AdminService_GetCapabilities
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetCapabilitiesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/admin/config-summary:
+        get:
+            tags:
+                - AdminService
+            operationId: AdminService_GetConfigSummary
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetConfigSummaryResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/admin/health:
+        get:
+            tags:
+                - AdminService
+            operationId: AdminService_GetHealth
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetHealthResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/integrations:
+        get:
+            tags:
+                - IntegrationService
+            operationId: IntegrationService_ListIntegrationAdapters
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListIntegrationAdaptersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/integrations/{adapterId}:
+        get:
+            tags:
+                - IntegrationService
+            operationId: IntegrationService_GetIntegrationAdapter
+            parameters:
+                - name: adapterId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetIntegrationAdapterResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/integrations/{adapterId}:setState:
+        post:
+            tags:
+                - IntegrationService
+            operationId: IntegrationService_SetIntegrationAdapterState
+            parameters:
+                - name: adapterId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetIntegrationAdapterStateRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetIntegrationAdapterStateResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/integrations/{adapterId}:validate:
+        post:
+            tags:
+                - IntegrationService
+            operationId: IntegrationService_ValidateIntegrationAdapter
+            parameters:
+                - name: adapterId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ValidateIntegrationAdapterResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/plans:
+        get:
+            tags:
+                - PlanService
+            operationId: PlanService_ListPlans
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+                - name: workspaceId
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListPlansResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - PlanService
+            operationId: PlanService_Plan
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/plans/{planId}:
+        get:
+            tags:
+                - PlanService
+            operationId: PlanService_GetPlan
+            parameters:
+                - name: planId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetPlanResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/runs:
+        get:
+            tags:
+                - RunService
+            operationId: RunService_ListRuns
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+                - name: workspaceId
+                  in: query
+                  schema:
+                    type: string
+                - name: status
+                  in: query
+                  schema:
+                    type: integer
+                    format: enum
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListRunsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/runs/{runId}:
+        get:
+            tags:
+                - RunService
+            operationId: RunService_GetRun
+            parameters:
+                - name: runId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetRunResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/runs/{runId}:cancel:
+        post:
+            tags:
+                - RunService
+            operationId: RunService_CancelRun
+            parameters:
+                - name: runId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CancelRunRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelRunResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/runs/{runId}:events:
+        get:
+            tags:
+                - RunService
+            operationId: RunService_StreamRunEvents
+            parameters:
+                - name: runId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: fromSequence
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RunEvent'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/runs:async:
+        post:
+            tags:
+                - RunService
+            operationId: RunService_RunAsync
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RunAsyncRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RunAsyncResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/runs:sync:
+        post:
+            tags:
+                - RunService
+            operationId: RunService_RunSync
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RunSyncRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RunEvent'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/stack:ensure:
+        post:
+            tags:
+                - StackService
+            operationId: StackService_EnsureStack
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/EnsureStackRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/EnsureStackResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/stack:logs:
+        get:
+            tags:
+                - StackService
+            operationId: StackService_GetStackLogs
+            parameters:
+                - name: workspaceId
+                  in: query
+                  schema:
+                    type: string
+                - name: serviceName
+                  in: query
+                  schema:
+                    type: string
+                - name: tailLines
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: follow
+                  in: query
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/LogLine'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/stack:status:
+        get:
+            tags:
+                - StackService
+            operationId: StackService_GetStackStatus
+            parameters:
+                - name: workspaceId
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetStackStatusResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /api/v1/stack:teardown:
+        post:
+            tags:
+                - StackService
+            operationId: StackService_TeardownStack
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TeardownStackRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TeardownStackResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+components:
+    schemas:
+        AdapterCapability:
+            type: object
+            properties:
+                name:
+                    type: string
+                enabled:
+                    type: boolean
+        ArtifactEnvelope:
+            type: object
+            properties:
+                schemaVersion:
+                    type: string
+                schemaRevision:
+                    type: integer
+                    format: uint32
+                mediaType:
+                    type: string
+                payload:
+                    type: string
+                    format: bytes
+                jsonExport:
+                    type: string
+                createdAt:
+                    type: string
+                    format: date-time
+                payloadSha256:
+                    type: string
+                compression:
+                    type: integer
+                    format: enum
+                signature:
+                    type: string
+            description: 'Canonical artifact envelope: protobuf payload plus optional JSON projection.'
+        AssertionFailure:
+            type: object
+            properties:
+                path:
+                    type: string
+                operator:
+                    type: string
+                expected:
+                    $ref: '#/components/schemas/GoogleProtobufValue'
+                actual:
+                    $ref: '#/components/schemas/GoogleProtobufValue'
+                message:
+                    type: string
+        CancelRunRequest:
+            type: object
+            properties:
+                runId:
+                    type: string
+                reason:
+                    type: string
+        CancelRunResponse:
+            type: object
+            properties:
+                runId:
+                    type: string
+                terminalStatus:
+                    type: integer
+                    format: enum
+        Capability:
+            type: object
+            properties:
+                name:
+                    type: string
+                enabled:
+                    type: boolean
+                minClientVersion:
+                    type: string
+        ComposeConfig:
+            type: object
+            properties:
+                files:
+                    type: array
+                    items:
+                        type: string
+                projectName:
+                    type: string
+                profiles:
+                    type: array
+                    items:
+                        type: string
+                migrationMode:
+                    type: integer
+                    format: enum
+                waitTimeout:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+        ConfigSummary:
+            type: object
+            properties:
+                workspaceId:
+                    type: string
+                activeProfile:
+                    type: string
+                execution:
+                    $ref: '#/components/schemas/ExecutionConfig'
+                compose:
+                    $ref: '#/components/schemas/ComposeConfig'
+                persistence:
+                    $ref: '#/components/schemas/PersistenceConfig'
+        DataTable:
+            type: object
+            properties:
+                headers:
+                    type: array
+                    items:
+                        type: string
+                rows:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DataTableRow'
+        DataTableRow:
+            type: object
+            properties:
+                cells:
+                    type: array
+                    items:
+                        type: string
+        DeterministicScenarioKey:
+            type: object
+            properties:
+                featureName:
+                    type: string
+                scenarioName:
+                    type: string
+                exampleRowIndex:
+                    type: integer
+                    description: 0-based example row index for scenario outlines; -1 for non-outline scenarios.
+                    format: int32
+                normalizationVersion:
+                    type: string
+                    description: Human-readable normalization policy identifier (for example, "nfkc-lower-trim-wscollapse-v1").
+                stableHash:
+                    type: string
+                    description: Stable hash generated from normalized key parts.
+            description: Canonical source fields used to derive deterministic scenario IDs.
+        DocString:
+            type: object
+            properties:
+                contentType:
+                    type: string
+                content:
+                    type: string
+        EnsureStackRequest:
+            type: object
+            properties:
+                workspaceId:
+                    type: string
+                profileName:
+                    type: string
+                waitForReadiness:
+                    type: boolean
+                waitTimeout:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+        EnsureStackResponse:
+            type: object
+            properties:
+                stack:
+                    $ref: '#/components/schemas/Stack'
+        ErrorRef:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    format: enum
+                message:
+                    type: string
+                attributes:
+                    type: object
+                    additionalProperties:
+                        type: string
+        ExecutionConfig:
+            type: object
+            properties:
+                mode:
+                    type: integer
+                    format: enum
+                runTimeout:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                stepTimeout:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                softAssert:
+                    type: boolean
+                failFast:
+                    type: boolean
+                keepStack:
+                    type: boolean
+        ExecutionPlan:
+            type: object
+            properties:
+                planId:
+                    type: string
+                workspaceId:
+                    type: string
+                profileName:
+                    type: string
+                scenarios:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ScenarioPlan'
+                estimatedDuration:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                selector:
+                    $ref: '#/components/schemas/RunSelector'
+                createdAt:
+                    type: string
+                    format: date-time
+                artifact:
+                    $ref: '#/components/schemas/PlanArtifact'
+        Feature:
+            type: object
+            properties:
+                name:
+                    type: string
+                description:
+                    type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+                backgroundSteps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Step'
+                scenarios:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Scenario'
+        GetCapabilitiesResponse:
+            type: object
+            properties:
+                apiPackage:
+                    type: string
+                apiVersion:
+                    type: string
+                capabilities:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Capability'
+        GetConfigSummaryResponse:
+            type: object
+            properties:
+                config:
+                    $ref: '#/components/schemas/ConfigSummary'
+        GetHealthResponse:
+            type: object
+            properties:
+                health:
+                    $ref: '#/components/schemas/HealthStatus'
+        GetIntegrationAdapterResponse:
+            type: object
+            properties:
+                adapter:
+                    $ref: '#/components/schemas/IntegrationAdapter'
+        GetPlanResponse:
+            type: object
+            properties:
+                plan:
+                    $ref: '#/components/schemas/ExecutionPlan'
+        GetRunResponse:
+            type: object
+            properties:
+                run:
+                    $ref: '#/components/schemas/Run'
+        GetStackStatusResponse:
+            type: object
+            properties:
+                stack:
+                    $ref: '#/components/schemas/Stack'
+                diagnostics:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ErrorRef'
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        GoogleProtobufValue:
+            description: Represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values.
+        HealthStatus:
+            type: object
+            properties:
+                live:
+                    type: boolean
+                ready:
+                    type: boolean
+                version:
+                    type: string
+                observedAt:
+                    type: string
+                    format: date-time
+        HookResult:
+            type: object
+            properties:
+                hookId:
+                    type: string
+                hookType:
+                    type: integer
+                    format: enum
+                status:
+                    type: integer
+                    format: enum
+                duration:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                error:
+                    $ref: '#/components/schemas/Status'
+        IntegrationAdapter:
+            type: object
+            properties:
+                adapterId:
+                    type: string
+                name:
+                    type: string
+                type:
+                    type: string
+                state:
+                    type: integer
+                    format: enum
+                capabilities:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AdapterCapability'
+                configExtension:
+                    $ref: '#/components/schemas/GoogleProtobufAny'
+                stateExtension:
+                    $ref: '#/components/schemas/GoogleProtobufAny'
+                updatedAt:
+                    type: string
+                    format: date-time
+        ListIntegrationAdaptersResponse:
+            type: object
+            properties:
+                adapters:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/IntegrationAdapter'
+                nextPageToken:
+                    type: string
+        ListPlansResponse:
+            type: object
+            properties:
+                plans:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ExecutionPlan'
+                nextPageToken:
+                    type: string
+        ListRunsResponse:
+            type: object
+            properties:
+                runs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Run'
+                nextPageToken:
+                    type: string
+        LogLine:
+            type: object
+            properties:
+                serviceName:
+                    type: string
+                line:
+                    type: string
+                observedAt:
+                    type: string
+                    format: date-time
+        PersistenceConfig:
+            type: object
+            properties:
+                sqlitePath:
+                    type: string
+                journalMode:
+                    type: string
+                busyTimeoutMs:
+                    type: integer
+                    format: uint32
+                retentionMaxRuns:
+                    type: integer
+                    format: uint32
+                retentionMaxAge:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+        PlanArtifact:
+            type: object
+            properties:
+                artifactId:
+                    type: string
+                storagePath:
+                    type: string
+                envelope:
+                    $ref: '#/components/schemas/ArtifactEnvelope'
+        PlanRequest:
+            type: object
+            properties:
+                selector:
+                    $ref: '#/components/schemas/RunSelector'
+                persistArtifact:
+                    type: boolean
+        PlanResponse:
+            type: object
+            properties:
+                plan:
+                    $ref: '#/components/schemas/ExecutionPlan'
+        Run:
+            type: object
+            properties:
+                runId:
+                    type: string
+                workspaceId:
+                    type: string
+                profileName:
+                    type: string
+                status:
+                    type: integer
+                    format: enum
+                feature:
+                    $ref: '#/components/schemas/Feature'
+                scenarioResults:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ScenarioResult'
+                suiteHookResults:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HookResult'
+                variables:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Variable'
+                summary:
+                    $ref: '#/components/schemas/RunSummary'
+                createdAt:
+                    type: string
+                    format: date-time
+                startedAt:
+                    type: string
+                    format: date-time
+                endedAt:
+                    type: string
+                    format: date-time
+        RunAsyncRequest:
+            type: object
+            properties:
+                selector:
+                    $ref: '#/components/schemas/RunSelector'
+                execution:
+                    $ref: '#/components/schemas/ExecutionConfig'
+                variables:
+                    type: object
+                    additionalProperties:
+                        type: string
+                idempotencyKey:
+                    type: string
+        RunAsyncResponse:
+            type: object
+            properties:
+                runId:
+                    type: string
+                acceptedAt:
+                    type: string
+                    format: date-time
+                idempotentReplay:
+                    type: boolean
+                replayOfRunId:
+                    type: string
+        RunEvent:
+            type: object
+            properties:
+                sequence:
+                    type: string
+                runId:
+                    type: string
+                observedAt:
+                    type: string
+                    format: date-time
+                runStatus:
+                    type: integer
+                    format: enum
+                scenarioResult:
+                    $ref: '#/components/schemas/ScenarioResult'
+                stepResult:
+                    $ref: '#/components/schemas/StepResult'
+                hookResult:
+                    $ref: '#/components/schemas/HookResult'
+                diagnostic:
+                    $ref: '#/components/schemas/Status'
+                summary:
+                    $ref: '#/components/schemas/RunSummary'
+                eventType:
+                    type: integer
+                    format: enum
+                metadata:
+                    type: object
+                    additionalProperties:
+                        type: string
+                terminal:
+                    type: boolean
+        RunSelector:
+            type: object
+            properties:
+                workspaceId:
+                    type: string
+                featurePath:
+                    type: string
+                tagExpression:
+                    type: string
+                profileName:
+                    type: string
+        RunSummary:
+            type: object
+            properties:
+                totalScenarios:
+                    type: integer
+                    format: uint32
+                passedScenarios:
+                    type: integer
+                    format: uint32
+                failedScenarios:
+                    type: integer
+                    format: uint32
+                skippedScenarios:
+                    type: integer
+                    format: uint32
+                duration:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+        RunSyncRequest:
+            type: object
+            properties:
+                selector:
+                    $ref: '#/components/schemas/RunSelector'
+                execution:
+                    $ref: '#/components/schemas/ExecutionConfig'
+                variables:
+                    type: object
+                    additionalProperties:
+                        type: string
+        Scenario:
+            type: object
+            properties:
+                scenarioId:
+                    type: string
+                name:
+                    type: string
+                description:
+                    type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Step'
+                example:
+                    $ref: '#/components/schemas/ScenarioExample'
+                deterministicKey:
+                    $ref: '#/components/schemas/DeterministicScenarioKey'
+        ScenarioExample:
+            type: object
+            properties:
+                rowIndex:
+                    type: integer
+                    format: int32
+                values:
+                    type: object
+                    additionalProperties:
+                        type: string
+        ScenarioPlan:
+            type: object
+            properties:
+                scenarioId:
+                    type: string
+                featureName:
+                    type: string
+                scenarioName:
+                    type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+                estimatedDuration:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                deterministicKey:
+                    $ref: '#/components/schemas/DeterministicScenarioKey'
+        ScenarioResult:
+            type: object
+            properties:
+                scenarioId:
+                    type: string
+                status:
+                    type: integer
+                    format: enum
+                duration:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                stepResults:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/StepResult'
+                hookResults:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HookResult'
+        SetIntegrationAdapterStateRequest:
+            type: object
+            properties:
+                adapterId:
+                    type: string
+                enabled:
+                    type: boolean
+                reason:
+                    type: string
+        SetIntegrationAdapterStateResponse:
+            type: object
+            properties:
+                adapter:
+                    $ref: '#/components/schemas/IntegrationAdapter'
+        Stack:
+            type: object
+            properties:
+                stackId:
+                    type: string
+                workspaceId:
+                    type: string
+                projectName:
+                    type: string
+                status:
+                    type: integer
+                    format: enum
+                services:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/StackComponent'
+                createdAt:
+                    type: string
+                    format: date-time
+                updatedAt:
+                    type: string
+                    format: date-time
+        StackComponent:
+            type: object
+            properties:
+                name:
+                    type: string
+                image:
+                    type: string
+                containerId:
+                    type: string
+                status:
+                    type: string
+                health:
+                    type: integer
+                    format: enum
+                updatedAt:
+                    type: string
+                    format: date-time
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
+                message:
+                    type: string
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        Step:
+            type: object
+            properties:
+                keyword:
+                    type: string
+                text:
+                    type: string
+                dataTable:
+                    $ref: '#/components/schemas/DataTable'
+                docString:
+                    $ref: '#/components/schemas/DocString'
+        StepResult:
+            type: object
+            properties:
+                stepId:
+                    type: string
+                status:
+                    type: integer
+                    format: enum
+                duration:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                assertionFailures:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AssertionFailure'
+                error:
+                    $ref: '#/components/schemas/Status'
+        TeardownStackRequest:
+            type: object
+            properties:
+                workspaceId:
+                    type: string
+                removeVolumes:
+                    type: boolean
+        TeardownStackResponse:
+            type: object
+            properties:
+                workspaceId:
+                    type: string
+                terminalStatus:
+                    type: integer
+                    format: enum
+        ValidateIntegrationAdapterResponse:
+            type: object
+            properties:
+                ok:
+                    type: boolean
+                diagnostic:
+                    $ref: '#/components/schemas/Status'
+        Variable:
+            type: object
+            properties:
+                name:
+                    type: string
+                value:
+                    $ref: '#/components/schemas/GoogleProtobufValue'
+                scope:
+                    type: integer
+                    format: enum
+tags:
+    - name: AdminService
+    - name: IntegrationService
+    - name: PlanService
+    - name: RunService
+    - name: StackService

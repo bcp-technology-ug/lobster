@@ -16,8 +16,10 @@ plugins:
     opt:
       - paths=source_relative
 
-  - remote: buf.build/grpc-ecosystem/openapiv2
+  - local: protoc-gen-openapi
     out: gen/openapi
+    opt:
+      - naming=json
 
 inputs:
   - directory: proto
