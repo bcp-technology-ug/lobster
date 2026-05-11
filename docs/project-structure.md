@@ -152,7 +152,7 @@ lobster/
 - Public extension contracts for future external authors
 - Stable interface surface kept small and versioned
 - Explicit API version compatibility checks against configured `steps.api_version`
-- Any future runtime plugin system must preserve the same version gate and fail closed on mismatches
+- Any future runtime plugin system must fail closed on version mismatches
 
 ### proto/lobster/v1
 
@@ -200,7 +200,7 @@ Scope note:
 
 - v0.1: static extension registries keep behavior deterministic and portable.
 - v0.2 target: RPC runtime plugin loading for out-of-process extensions.
-- v0.2 plugin loading must keep the same compatibility model as static registries, including explicit version negotiation and deterministic fallback behavior.
+- v0.2 plugin loading must preserve explicit version negotiation and fail closed when the version contract does not match.
 
 ## API and persistence strategy
 

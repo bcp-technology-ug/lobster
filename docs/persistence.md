@@ -179,7 +179,8 @@ Current baseline:
 Future parallelism:
 
 - schema and query patterns must be reviewed before enabling higher write concurrency.
-- any move beyond serial scenario execution needs an explicit lock-contention strategy, write-queue policy, and retention-job interaction model.
+- the v0.2 concurrency plan is server-side write serialization with explicit queueing, lock-contention metrics, and no parallel scenario execution yet.
+- any later move beyond serial scenario execution needs an explicit lock-contention strategy, write-queue policy, and retention-job interaction model.
 - long-running write transactions should be minimized.
 
 Scope note:

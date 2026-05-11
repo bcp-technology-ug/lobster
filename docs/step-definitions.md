@@ -117,7 +117,7 @@ Future runtime plugins:
 - Runtime-loaded plugins are planned for a future release through an RPC-based plugin system.
 - Go `.so` plugin loading is intentionally avoided for portability and reproducibility reasons.
 - Future plugins must advertise a compatible `steps.api_version` and be rejected when the version contract does not match.
-- Static registration remains the v0.1 default and the fallback behavior even after runtime plugins are introduced.
+- Static registration remains the v0.1 default and runtime plugin mismatches must fail closed.
 
 Remote execution behavior:
 

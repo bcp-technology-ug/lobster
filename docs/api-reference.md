@@ -35,6 +35,11 @@ Canonical layout:
 - `proto/lobster/v1/stack.proto` for stack lifecycle APIs
 - `proto/lobster/v1/admin.proto` for health/capabilities APIs
 
+v0.1 surface rule:
+
+- the initial v0.1 proto surface is frozen for implementation once these files and services are in place
+- new RPCs or request/response shapes should be treated as explicit versioned changes, not informal additions
+
 Naming conventions:
 
 - package names follow `lobster.v1.<surface>`
@@ -253,7 +258,7 @@ Clients should query `GetCapabilities` and adapt behavior when:
 
 - optional APIs are unavailable
 - server policy disables a feature
-- client/server version mismatch requires fallback behavior
+- client/server version mismatch requires explicit failure or a clearly documented compatibility path
 
 ## Non-goals
 

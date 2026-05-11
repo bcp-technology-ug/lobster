@@ -131,6 +131,7 @@ Required dogfooding checks in CI:
 - failures in self-hosted suites block merge
 - at least one cross-mode contract suite must cover the same logical flow in local mode and daemon mode when both are available
 - contract parity failures between local and daemon execution paths must block merge
+- cross-mode parity is a required blocking gate, not a best-effort recommendation
 
 Remote security baseline in CI:
 
