@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package lobster.v1.config;
+
+option go_package = "github.com/bcp-technology/lobster/gen/go/lobster/v1/config;configv1";
+
+import "buf/validate/validate.proto";
+import "lobster/v1/common.proto";
+import "google/protobuf/duration.proto";
+
+message ExecutionConfig {
+  lobster.v1.common.ExecutionMode mode = 1;
+  google.protobuf.Duration run_timeout = 2;
+  google.protobuf.Duration step_timeout = 3;
+  bool soft_assert = 4;
+  bool fail_fast = 5;
+  bool keep_stack = 6;
+}
+
+message ComposeConfig {
+  repeated string files = 1 [(buf.validate.field).repeated.max_items = 32];
+  string project_name = 2 [(buf.validate.field).string.max_len = 128];
+  repeated string profiles = 3 [(buf.validate.field).repeated.max_items = 16];
+  lobster.v1.common.MigrationMode migration_mode = 4;
+  google.protobuf.Duration wait_timeout = 5;
+}
+
+message TransportConfig {
+  bool allow_insecure_local = 1;
+  bool tls_enabled = 2;
+  string tls_ca_file = 3 [(buf.validate.field).string.max_len = 1024];
+  string jwks_url = 4 [(buf.validate.field).string.max_len = 1024, (lobster.v1.common.redact) = true, (lobster.v1.common.sensitivity) = "credential"];
+  string static_bearer_token = 5 [(buf.validate.field).string.max_len = 4096, (lobster.v1.common.redact) = true, (lobster.v1.common.sensitivity) = "credential"];
+}
+
+message PersistenceConfig {
+  string sqlite_path = 1 [(buf.validate.field).string.max_len = 1024];
+  string journal_mode = 2;
+  uint32 busy_timeout_ms = 3 [(buf.validate.field).uint32.lte = 120000];
+  uint32 retention_max_runs = 4 [(buf.validate.field).uint32.lte = 1000000];
+  google.protobuf.Duration retention_max_age = 5;
+}
+
+message HttpDefaults {
+  google.protobuf.Duration timeout = 1;
+  map<string, string> headers = 2 [(buf.validate.field).map.max_pairs = 64];
+}
+
+message Profile {
+  string name = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 64];
+  ExecutionConfig execution = 2;
+  ComposeConfig compose = 3;
+  TransportConfig transport = 4;
+  PersistenceConfig persistence = 5;
+  map<string, string> variables = 6 [(buf.validate.field).map.max_pairs = 512];
+  HttpDefaults http_defaults = 7;
+}
+
+message EffectiveConfig {
+  string workspace_id = 1 [(buf.validate.field).string.max_len = 128];
+  string active_profile = 2 [(buf.validate.field).string.max_len = 64];
+  ExecutionConfig execution = 3;
+  ComposeConfig compose = 4;
+  TransportConfig transport = 5;
+  PersistenceConfig persistence = 6;
+  map<string, string> variables = 7 [(buf.validate.field).map.max_pairs = 512];
+}

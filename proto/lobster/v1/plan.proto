@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package lobster.v1.plan;
+
+option go_package = "github.com/bcp-technology/lobster/gen/go/lobster/v1/plan;planv1";
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "lobster/v1/common.proto";
+import "lobster/v1/run.proto";
+
+message ScenarioPlan {
+  string scenario_id = 1;
+  string feature_name = 2;
+  string scenario_name = 3;
+  repeated string tags = 4;
+  google.protobuf.Duration estimated_duration = 5;
+  lobster.v1.common.DeterministicScenarioKey deterministic_key = 6;
+}
+
+message PlanArtifact {
+  string artifact_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+  string storage_path = 2 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 1024];
+  lobster.v1.common.ArtifactEnvelope envelope = 3;
+}
+
+message ExecutionPlan {
+  string plan_id = 1;
+  string workspace_id = 2;
+  string profile_name = 3;
+  repeated ScenarioPlan scenarios = 4;
+  google.protobuf.Duration estimated_duration = 5;
+  lobster.v1.run.RunSelector selector = 6;
+  google.protobuf.Timestamp created_at = 7;
+  PlanArtifact artifact = 8;
+}
+
+message PlanRequest {
+  lobster.v1.run.RunSelector selector = 1 [(buf.validate.field).required = true];
+  bool persist_artifact = 2;
+}
+
+message PlanResponse {
+  ExecutionPlan plan = 1;
+}
+
+message GetPlanRequest {
+  string plan_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+}
+
+message GetPlanResponse {
+  ExecutionPlan plan = 1;
+}
+
+message ListPlansRequest {
+  uint32 page_size = 1 [(buf.validate.field).uint32.gte = 1, (buf.validate.field).uint32.lte = 100];
+  string page_token = 2;
+  string workspace_id = 3 [(buf.validate.field).string.max_len = 128];
+}
+
+message ListPlansResponse {
+  repeated ExecutionPlan plans = 1;
+  string next_page_token = 2;
+}
+
+service PlanService {
+  rpc Plan(PlanRequest) returns (PlanResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/plans"
+      body: "*"
+    };
+  }
+
+  rpc GetPlan(GetPlanRequest) returns (GetPlanResponse) {
+    option (google.api.http) = {get: "/api/v1/plans/{plan_id}"};
+  }
+
+  rpc ListPlans(ListPlansRequest) returns (ListPlansResponse) {
+    option (google.api.http) = {get: "/api/v1/plans"};
+  }
+}

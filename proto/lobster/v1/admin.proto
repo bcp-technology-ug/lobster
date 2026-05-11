@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package lobster.v1.admin;
+
+option go_package = "github.com/bcp-technology/lobster/gen/go/lobster/v1/admin;adminv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "lobster/v1/config.proto";
+
+message GetHealthRequest {}
+
+message HealthStatus {
+  bool live = 1;
+  bool ready = 2;
+  string version = 3;
+  google.protobuf.Timestamp observed_at = 4;
+}
+
+message GetHealthResponse {
+  HealthStatus health = 1;
+}
+
+message GetCapabilitiesRequest {}
+
+message Capability {
+  string name = 1;
+  bool enabled = 2;
+  string min_client_version = 3;
+}
+
+message GetCapabilitiesResponse {
+  string api_package = 1;
+  string api_version = 2;
+  repeated Capability capabilities = 3;
+}
+
+message GetConfigSummaryRequest {}
+
+message ConfigSummary {
+  string workspace_id = 1;
+  string active_profile = 2;
+  lobster.v1.config.ExecutionConfig execution = 3;
+  lobster.v1.config.ComposeConfig compose = 4;
+  lobster.v1.config.PersistenceConfig persistence = 5;
+  // Transport settings intentionally omitted when not safe to expose.
+}
+
+message GetConfigSummaryResponse {
+  ConfigSummary config = 1;
+}
+
+service AdminService {
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/health"};
+  }
+
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/capabilities"};
+  }
+
+  rpc GetConfigSummary(GetConfigSummaryRequest) returns (GetConfigSummaryResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/config-summary"};
+  }
+}

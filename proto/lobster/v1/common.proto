@@ -1,0 +1,164 @@
+syntax = "proto3";
+
+package lobster.v1.common;
+
+option go_package = "github.com/bcp-technology/lobster/gen/go/lobster/v1/common;commonv1";
+
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
+
+// Custom field option for runtime redaction in API output, logs, and reports.
+extend google.protobuf.FieldOptions {
+  bool redact = 50001;
+  string sensitivity = 50002;
+}
+
+enum RunStatus {
+  RUN_STATUS_UNSPECIFIED = 0;
+  RUN_STATUS_PENDING = 1;
+  RUN_STATUS_RUNNING = 2;
+  RUN_STATUS_PASSED = 3;
+  RUN_STATUS_FAILED = 4;
+  RUN_STATUS_CANCELLED = 5;
+}
+
+enum ScenarioStatus {
+  SCENARIO_STATUS_UNSPECIFIED = 0;
+  SCENARIO_STATUS_PENDING = 1;
+  SCENARIO_STATUS_RUNNING = 2;
+  SCENARIO_STATUS_PASSED = 3;
+  SCENARIO_STATUS_FAILED = 4;
+  SCENARIO_STATUS_SKIPPED = 5;
+  SCENARIO_STATUS_CANCELLED = 6;
+}
+
+enum StepStatus {
+  STEP_STATUS_UNSPECIFIED = 0;
+  STEP_STATUS_PENDING = 1;
+  STEP_STATUS_RUNNING = 2;
+  STEP_STATUS_PASSED = 3;
+  STEP_STATUS_FAILED = 4;
+  STEP_STATUS_UNDEFINED = 5;
+  STEP_STATUS_SKIPPED = 6;
+}
+
+enum HookType {
+  HOOK_TYPE_UNSPECIFIED = 0;
+  HOOK_TYPE_BEFORE_SUITE = 1;
+  HOOK_TYPE_AFTER_SUITE = 2;
+  HOOK_TYPE_BEFORE_SCENARIO = 3;
+  HOOK_TYPE_AFTER_SCENARIO = 4;
+}
+
+enum ExecutionMode {
+  EXECUTION_MODE_UNSPECIFIED = 0;
+  EXECUTION_MODE_LOCAL = 1;
+  EXECUTION_MODE_DAEMON = 2;
+}
+
+enum RunMode {
+  RUN_MODE_UNSPECIFIED = 0;
+  RUN_MODE_SYNC = 1;
+  RUN_MODE_ASYNC = 2;
+}
+
+enum MigrationMode {
+  MIGRATION_MODE_UNSPECIFIED = 0;
+  MIGRATION_MODE_AUTO = 1;
+  MIGRATION_MODE_EXTERNAL = 2;
+  MIGRATION_MODE_DISABLED = 3;
+}
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_VALIDATION = 1;
+  ERROR_CODE_AUTHN = 2;
+  ERROR_CODE_AUTHZ = 3;
+  ERROR_CODE_NOT_FOUND = 4;
+  ERROR_CODE_CONFLICT = 5;
+  ERROR_CODE_TIMEOUT = 6;
+  ERROR_CODE_INTERNAL = 7;
+}
+
+enum CompressionType {
+  COMPRESSION_TYPE_UNSPECIFIED = 0;
+  COMPRESSION_TYPE_NONE = 1;
+  COMPRESSION_TYPE_GZIP = 2;
+  COMPRESSION_TYPE_ZSTD = 3;
+}
+
+// Canonical source fields used to derive deterministic scenario IDs.
+message DeterministicScenarioKey {
+  string feature_name = 1;
+  string scenario_name = 2;
+  // 0-based example row index for scenario outlines; -1 for non-outline scenarios.
+  int32 example_row_index = 3;
+  // Human-readable normalization policy identifier (for example, "nfkc-lower-trim-wscollapse-v1").
+  string normalization_version = 4;
+  // Stable hash generated from normalized key parts.
+  string stable_hash = 5;
+}
+
+message ValidationErrorDetail {
+  string field = 1;
+  string reason = 2;
+  string constraint = 3;
+  string provided_value = 4;
+}
+
+message ConflictDetail {
+  string resource_type = 1;
+  string resource_id = 2;
+  string reason = 3;
+}
+
+message StackFailureDetail {
+  string service_name = 1;
+  string container_id = 2;
+  int32 exit_code = 3;
+  string summary = 4;
+  repeated string log_tail = 5;
+}
+
+message StepFailureDetail {
+  string scenario_id = 1;
+  string step_id = 2;
+  string step_text = 3;
+  string assertion_path = 4;
+  string summary = 5;
+}
+
+message CancellationDetail {
+  string run_id = 1;
+  string requested_by = 2;
+  string reason = 3;
+  bool graceful = 4;
+}
+
+message PageRequest {
+  uint32 page_size = 1;
+  string page_token = 2;
+}
+
+message PageResponse {
+  string next_page_token = 1;
+}
+
+message ErrorRef {
+  ErrorCode code = 1;
+  string message = 2;
+  map<string, string> attributes = 3;
+}
+
+// Canonical artifact envelope: protobuf payload plus optional JSON projection.
+message ArtifactEnvelope {
+  string schema_version = 1;
+  uint32 schema_revision = 2;
+  string media_type = 3;
+  bytes payload = 4;
+  string json_export = 5;
+  google.protobuf.Timestamp created_at = 6;
+  string payload_sha256 = 7;
+  CompressionType compression = 8;
+  string signature = 9;
+}

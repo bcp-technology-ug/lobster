@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package lobster.v1.stack;
+
+option go_package = "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack;stackv1";
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "lobster/v1/common.proto";
+
+enum StackStatus {
+  STACK_STATUS_UNSPECIFIED = 0;
+  STACK_STATUS_PROVISIONING = 1;
+  STACK_STATUS_HEALTHY = 2;
+  STACK_STATUS_DEGRADED = 3;
+  STACK_STATUS_UNHEALTHY = 4;
+  STACK_STATUS_TEARDOWN = 5;
+}
+
+enum ServiceHealth {
+  SERVICE_HEALTH_UNSPECIFIED = 0;
+  SERVICE_HEALTH_STARTING = 1;
+  SERVICE_HEALTH_HEALTHY = 2;
+  SERVICE_HEALTH_UNHEALTHY = 3;
+  SERVICE_HEALTH_UNKNOWN = 4;
+}
+
+message StackComponent {
+  string name = 1;
+  string image = 2;
+  string container_id = 3;
+  string status = 4;
+  ServiceHealth health = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message Stack {
+  string stack_id = 1;
+  string workspace_id = 2;
+  string project_name = 3;
+  StackStatus status = 4;
+  repeated StackComponent services = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message EnsureStackRequest {
+  string workspace_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+  string profile_name = 2 [(buf.validate.field).string.max_len = 64];
+  bool wait_for_readiness = 3;
+  google.protobuf.Duration wait_timeout = 4;
+}
+
+message EnsureStackResponse {
+  Stack stack = 1;
+}
+
+message GetStackStatusRequest {
+  string workspace_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+}
+
+message GetStackStatusResponse {
+  Stack stack = 1;
+  repeated lobster.v1.common.ErrorRef diagnostics = 2;
+}
+
+message TeardownStackRequest {
+  string workspace_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+  bool remove_volumes = 2;
+}
+
+message TeardownStackResponse {
+  string workspace_id = 1;
+  StackStatus terminal_status = 2;
+}
+
+message GetStackLogsRequest {
+  string workspace_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+  string service_name = 2 [(buf.validate.field).string.max_len = 128];
+  uint32 tail_lines = 3 [(buf.validate.field).uint32.lte = 10000];
+  bool follow = 4;
+}
+
+message LogLine {
+  string service_name = 1;
+  string line = 2;
+  google.protobuf.Timestamp observed_at = 3;
+}
+
+service StackService {
+  rpc EnsureStack(EnsureStackRequest) returns (EnsureStackResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/stack:ensure"
+      body: "*"
+    };
+  }
+
+  rpc GetStackStatus(GetStackStatusRequest) returns (GetStackStatusResponse) {
+    option (google.api.http) = {get: "/api/v1/stack:status"};
+  }
+
+  rpc TeardownStack(TeardownStackRequest) returns (TeardownStackResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/stack:teardown"
+      body: "*"
+    };
+  }
+
+  rpc GetStackLogs(GetStackLogsRequest) returns (stream LogLine) {
+    option (google.api.http) = {get: "/api/v1/stack:logs"};
+  }
+}
