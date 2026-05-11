@@ -91,9 +91,10 @@ Recommended defaults:
 
 Recommended sqlc source layout:
 
-- `sql/run/queries.sql` for run lifecycle state
-- `sql/plan/queries.sql` for plan artifacts and metadata
-- `sql/stack/queries.sql` for stack/runtime metadata
+- `sql/run/queries_run.sql` for run lifecycle state
+- `sql/plan/queries_plan.sql` for plan artifacts and metadata
+- `sql/stack/queries_stack.sql` for stack/runtime metadata
+- `sql/integrations/queries_integrations.sql` for integration adapter state and capabilities
 - split into `queries_<entity>.sql` files when a surface grows
 
 Recommended sqlc output layout:
@@ -101,6 +102,7 @@ Recommended sqlc output layout:
 - `gen/sqlc/run/`
 - `gen/sqlc/plan/`
 - `gen/sqlc/stack/`
+- `gen/sqlc/integrations/`
 
 Recommended query naming:
 

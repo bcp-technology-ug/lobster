@@ -30,10 +30,12 @@ lobster/
       run/
       plan/
       stack/
+      integrations/
   sql/
     run/
     plan/
     stack/
+    integrations/
   migrations/
   internal/
     cli/

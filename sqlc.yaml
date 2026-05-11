@@ -1,0 +1,62 @@
+version: "2"
+sql:
+  - engine: sqlite
+    schema:
+      - "migrations/*.up.sql"
+    queries:
+      - "sql/run/*.sql"
+    gen:
+      go:
+        package: runstore
+        out: gen/sqlc/run
+        omit_unused_structs: true
+        emit_interface: true
+        emit_json_tags: true
+        emit_empty_slices: true
+        emit_exact_table_names: false
+        emit_pointers_for_null_types: true
+  - engine: sqlite
+    schema:
+      - "migrations/*.up.sql"
+    queries:
+      - "sql/plan/*.sql"
+    gen:
+      go:
+        package: planstore
+        out: gen/sqlc/plan
+        omit_unused_structs: true
+        emit_interface: true
+        emit_json_tags: true
+        emit_empty_slices: true
+        emit_exact_table_names: false
+        emit_pointers_for_null_types: true
+  - engine: sqlite
+    schema:
+      - "migrations/*.up.sql"
+    queries:
+      - "sql/stack/*.sql"
+    gen:
+      go:
+        package: stackstore
+        out: gen/sqlc/stack
+        omit_unused_structs: true
+        emit_interface: true
+        emit_json_tags: true
+        emit_empty_slices: true
+        emit_exact_table_names: false
+        emit_pointers_for_null_types: true
+  - engine: sqlite
+    schema:
+      - "migrations/*.up.sql"
+    queries:
+      - "sql/integrations/*.sql"
+    gen:
+      go:
+        package: integrationstore
+        out: gen/sqlc/integrations
+        omit_unused_structs: true
+        emit_interface: true
+        emit_json_tags: true
+        emit_empty_slices: true
+        emit_exact_table_names: false
+        emit_pointers_for_null_types: true
