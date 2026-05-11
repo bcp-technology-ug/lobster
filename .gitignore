@@ -1,0 +1,58 @@
+# =========================
+# Go build and test outputs
+# =========================
+/bin/
+*.test
+*.prof
+*.coverprofile
+coverage.out
+cover.out
+
+# =========================
+# Runtime/local project data
+# =========================
+.lobster/
+reports/
+
+# =========================
+# Logs and temp files
+# =========================
+*.log
+*.tmp
+*.swp
+*.swo
+
+# =========================
+# Environment/local secrets
+# =========================
+.env
+.env.*
+*.local
+
+# =========================
+# Node/npm tooling artifacts
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Editor/IDE artifacts
+# =========================
+.vscode/
+.idea/
+*.iml
+
+# =========================
+# OS artifacts
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Generated artifacts policy
+# =========================
+# Do NOT ignore generated sources under gen/.
+# This repository tracks generated artifacts by policy.

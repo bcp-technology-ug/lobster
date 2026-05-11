@@ -1,93 +1,183 @@
-# lobster
+# 🦞 lobster
 
-Lobster — behaviour-driven development (BDD) framework for writing human-readable specifications and living documentation
+> **CLI-first, open-source, end-to-end BDD testing — no SaaS, no billing, no limits.**
 
-## Getting started
+Lobster is a Behaviour-Driven Development (BDD) testing framework built for engineers who want to test their *entire stack* — not just units or isolated services. Write human-readable Gherkin feature files, point lobster at your Docker Compose infrastructure, and let it orchestrate, execute, and report your full end-to-end test suite from the command line or inside CI.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Runtime binaries:
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- `lobster`: local/client CLI for authoring, validation, planning, and run submission
+- `lobsterd`: long-running remote daemon and Wish host for VM or server deployments
 
-## Add your files
+Development model:
 
-* [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+- Lobster is dual-developed by BCP Technology as an internal production tool and an open GitHub project.
+- Internal and GitHub development track the same codebase.
+- Changes developed internally are published alongside open development updates.
+- GitHub contributions are included in the same ongoing internal development stream.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
+
+---
+
+## Why lobster?
+
+Most E2E testing tools are either SaaS products with billing tiers, framework-specific (Playwright for browsers, Postman for APIs), or require significant glue code to stand up real infrastructure. Lobster is different:
+
+- **Infrastructure-aware** — reads your existing Docker Compose files and manages the full service lifecycle.
+- **BDD-first** — plain-language Gherkin tests that are readable by engineers *and* stakeholders.
+- **CLI/CI-first** — designed to run headlessly in pipelines, with optional TUI capabilities as the project evolves.
+- **Remote-capable** — optional daemon execution for teams that run tests on stronger remote hosts.
+- **Extensible by design** — v0.1 ships with built-in static extension registries, with runtime plugin loading planned for a later release.
+- **Open forever** — MIT licensed, no telemetry, no accounts, no limits.
+
+---
+
+## Features
+
+- Parse, validate, and lint `.feature` (Gherkin) files
+- Local in-process execution mode and remote daemon execution mode
+- Proto-first API contracts with gRPC and gRPC-Gateway HTTP support
+- Charm Wish as an optional remote client surface against the same backend
+- Support `Background` and `Scenario Outline` in v0.1 feature execution
+- Support Gherkin Data Tables in v0.1 step arguments
+- Orchestrate Docker Compose stacks with Docker SDK-backed lifecycle control and health-aware startup
+- Built-in step definitions for HTTP, JSON assertions, retries, and waits
+- Built-in auth helpers for Bearer, Basic, API key, mTLS, and OAuth device/code flows
+- Minimal first-class Keycloak integration for v0.1 (realm setup, user provisioning, token acquisition)
+- Console summary, JUnit XML, and JSON report output for CI systems
+- Domain-driven Go architecture built around clear package boundaries and testability
+- Future interactive TUI path powered by [Bubbletea](https://github.com/charmbracelet/bubbletea), [Lipgloss](https://github.com/charmbracelet/lipgloss), and [Bubbles](https://github.com/charmbracelet/bubbles)
+- Deterministic serial scenario execution in v0.1 with structured exit codes
+- Undefined steps are collected during run and reported together before failing
+- JSONPath-based assertions with configurable HTTP base URL and default headers
+- Optional soft-assert mode, matrix profile runs, and basic OpenTelemetry trace export in v0.1
+- Per-scenario reset and idempotent seed policy for deterministic test data in v0.1
+- Configurable migration mode (`auto`, `external`, `disabled`) per environment profile
+- SQLite persistence with sqlc query generation for run history and detailed results
+- Dogfooding-first testing: Lobster integration and E2E suites are executed by Lobster itself
+- Quarantine-tag workflow for flaky tests (`@quarantine`) with separate non-blocking CI routing
+- Terraform-style planning via `lobster plan` before execution
+- Saved plan artifacts with apply-style execution via `lobster run --from-plan`
+- Monorepo workspace discovery and workspace-targeted execution in v0.1
+- Compose profile selection and configurable cache controls (`--no-cache` override)
+- Hierarchical run output (Feature -> Scenario -> Step) with `-v/-vv/-vvv` verbosity levels
+
+---
+
+## Quick start
+
+### Prerequisites
+
+- [Go 1.22+](https://go.dev/dl/)
+- [Docker](https://docs.docker.com/get-docker/) with Compose v2
+
+### Install
+
+```bash
+go install github.com/bcp-technology/lobster@latest
 ```
-cd existing_repo
-git remote add origin https://gitlab.internal.bcp.technology/bcp-technology/opensource/lobster.git
-git branch -M main
-git push -uf origin main
+
+### Initialise a project
+
+```bash
+lobster init my-project
+cd my-project
 ```
 
-## Integrate with your tools
+This creates a `lobster.yaml` config file and a `features/` directory with a sample feature file.
 
-* [Set up project integrations](https://gitlab.internal.bcp.technology/bcp-technology/opensource/lobster/-/settings/integrations)
+### Write a test
 
-## Collaborate with your team
+```gherkin
+# features/api/health.feature
+Feature: API health check
+  As an operator
+  I want the API to report healthy
+  So that I know the service is running
 
-* [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+  Scenario: Health endpoint returns 200
+    Given the service "api" is running
+    When I send a GET request to "/health"
+    Then the response status should be 200
+    And the response body should contain "ok"
+```
 
-## Test and Deploy
+### Validate and run
 
-Use the built-in continuous integration in GitLab.
+```bash
+# Lint and validate all feature files
+lobster validate
+lobster lint
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+# Spin up Docker Compose, run all tests, tear down
+lobster run
+```
 
-***
+Optional remote daemon execution:
 
-# Editing this README
+```bash
+lobsterd start --listen :9443 --http-listen :8080 --db-path /var/lib/lobster/lobster.db
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+lobster run --executor-mode daemon --executor-addr dns:///lobsterd.internal:9443 --run-mode sync
+```
 
-## Suggestions for a good README
+### Current status
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Lobster is currently in design-to-implementation transition.
 
-## Name
-Choose a self-explaining name for your project.
+- v0.1 focus: reliable core execution loop (`plan`, `validate`, `lint`, `config`, `run`) with matrix-capable CI workflows.
+- v0.1 runtime model uses split binaries: `lobster` (client) and `lobsterd` (remote daemon).
+- v0.1 includes SemVer + explicit extension API version contract checks for compatibility.
+- v0.1 includes workspace-aware planning and plan-artifact apply workflows.
+- Release channels: `stable` and `nightly`.
+- Before v1.0, minor releases may include breaking changes with explicit deprecation warnings and removal targets.
+- Runtime plugin loading and richer interactive TUI behavior are planned for later iterations.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+---
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Documentation
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+| Document | Description |
+|---|---|
+| [Getting started](docs/getting-started.md) | Install, initialise, write your first test |
+| [Core concepts](docs/concepts.md) | BDD, Gherkin, and how lobster works |
+| [Project structure](docs/project-structure.md) | Planned Go package layout and dependency boundaries |
+| [Architecture](docs/architecture.md) | Internal design and component overview |
+| [Spec definition](docs/spec-definition.md) | Contract-first workflow and checklist for new capabilities |
+| [API reference](docs/api-reference.md) | Canonical proto-first transport contract |
+| [CLI reference](docs/cli-reference.md) | All commands, flags, and examples |
+| [Configuration](docs/configuration.md) | `lobster.yaml` schema and environment variables |
+| [Configuration profiles](docs/config-profiles.md) | Local, CI, and debug profile templates |
+| [Persistence](docs/persistence.md) | SQLite, sqlc, migrations, and retention policy |
+| [Docker Compose integration](docs/docker-compose-integration.md) | Stack lifecycle, health checks, networking |
+| [Step definitions](docs/step-definitions.md) | Built-in steps and the extension model |
+| [Integrations](docs/integrations.md) | Service adapters (Keycloak and beyond) |
+| [Testing strategy](docs/testing.md) | Unit, integration, E2E, and dogfooding policy |
+| [CI/CD](docs/ci-cd.md) | GitHub Actions, GitLab CI, exit codes, reports |
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+---
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+---
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Code of Conduct
+
+This project follows the [Contributor Covenant 2.1](CODE_OF_CONDUCT.md). Please be kind.
+
+---
+
+## Mission
+
+Read [MISSION.md](MISSION.md) for the full mission statement — what lobster is, what it will never become, and the principles that guide its development.
+
+---
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+[MIT](LICENSE) © 2026 BCP Technology
