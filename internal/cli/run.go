@@ -15,6 +15,7 @@ import (
 	"github.com/bcp-technology/lobster/internal/integrations"
 	"github.com/bcp-technology/lobster/internal/integrations/keycloak"
 	"github.com/bcp-technology/lobster/internal/orchestration"
+	"github.com/bcp-technology/lobster/internal/parser"
 	"github.com/bcp-technology/lobster/internal/reports"
 	"github.com/bcp-technology/lobster/internal/runner"
 	"github.com/bcp-technology/lobster/internal/steps"
@@ -257,6 +258,34 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 		return runWithDaemonSync(ctx, client, req, reportJSON, reportJUnit, cmd)
 	}
 
+	// ── interactive scenario picker ──────────────────────────────────────────
+	// Show the picker when in local mode, no explicit scenario filter is set,
+	// and we are attached to a real TTY.
+	interactive := ui.IsInteractive() && !ciMode
+	if interactive && tagExpr == "" && scenarioRegex == "" && len(planScenarioIDs) == 0 && executorMode != "daemon" {
+		var features []*parser.Feature
+		for _, glob := range featuresCfg {
+			parsed, parseErr := parser.ParseGlob(glob)
+			if parseErr == nil {
+				features = append(features, parsed...)
+			}
+		}
+		if len(features) > 0 {
+			picker := ui.NewScenarioPickerModel(features)
+			p := tea.NewProgram(picker)
+			finalModel, runErr2 := p.Run()
+			if runErr2 == nil {
+				if pm, ok := finalModel.(ui.ScenarioPickerModel); ok {
+					if pm.Done() {
+						if ids := pm.SelectedIDs(); len(ids) > 0 {
+							planScenarioIDs = ids
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// ── local execution path ─────────────────────────────────────────────
 
 	// OTel: initialise tracing when an endpoint is configured.
@@ -407,7 +436,6 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	extraReporters = append(extraReporters, capture)
 
 	// Choose TUI or console.
-	interactive := ui.IsInteractive() && !ciMode
 	var runErr error
 	if interactive {
 		runErr = runWithTUI(ctx, r, req, extraReporters, verbosity, cmd)

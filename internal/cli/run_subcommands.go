@@ -8,6 +8,7 @@ import (
 	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
 	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
 	"github.com/bcp-technology/lobster/internal/ui"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
@@ -49,6 +50,21 @@ func newRunWatchCommand(_ *viper.Viper) *cobra.Command {
 				return &ExitError{Code: exitCodeForRunError(err)}
 			}
 
+			// Use TUI WatchModel when attached to an interactive terminal.
+			if ui.IsInteractive() {
+				m := ui.NewWatchModel(runID, stream)
+				p := tea.NewProgram(m, tea.WithAltScreen())
+				finalModel, runErr := p.Run()
+				if runErr != nil {
+					return fmt.Errorf("TUI error: %w", runErr)
+				}
+				if wm, ok := finalModel.(ui.WatchModel); ok && wm.ExitCode() != 0 {
+					return &ExitError{Code: ExitScenarioFailure}
+				}
+				return nil
+			}
+
+			// Non-interactive fallback: plain text stream.
 			var failed bool
 			for {
 				ev, recvErr := stream.Recv()

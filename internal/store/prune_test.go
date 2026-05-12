@@ -30,10 +30,10 @@ func createTerminalRun(t *testing.T, st *store.Store, workspaceID, runID string,
 	endedAtStr := endedAt.UTC().Format(time.RFC3339Nano)
 	createdAtStr := createdAt
 	if err := st.Run.UpdateRunStatus(ctx, runstore.UpdateRunStatusParams{
-		Status:  3, // PASSED
-		EndedAt: &endedAtStr,
+		Status:    3, // PASSED
+		EndedAt:   &endedAtStr,
 		StartedAt: &createdAtStr,
-		RunID:   runID,
+		RunID:     runID,
 	}); err != nil {
 		t.Fatalf("UpdateRunStatus %s: %v", runID, err)
 	}

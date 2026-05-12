@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -92,4 +93,15 @@ func bearerStreamInterceptor(token string) grpc.StreamClientInterceptor {
 		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
 		return streamer(ctx, desc, cc, method, opts...)
 	}
+}
+
+// addDaemonPersistentFlags adds the standard daemon connection flags as
+// persistent flags on a command, so all subcommands inherit them.
+func addDaemonPersistentFlags(cmd *cobra.Command) {
+	pf := cmd.PersistentFlags()
+	pf.String("executor-addr", "", "daemon gRPC address (e.g. dns:///lobsterd:9443)")
+	pf.String("auth-token", "", "bearer token for daemon authentication")
+	pf.String("tls-ca-file", "", "CA certificate file for TLS server verification")
+	pf.String("tls-cert-file", "", "client TLS certificate file (for mTLS)")
+	pf.String("tls-key-file", "", "client TLS private key file (for mTLS)")
 }

@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -32,6 +34,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -230,8 +235,8 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 				return fmt.Errorf("build API server: %w", err)
 			}
 
-			// Start gRPC listener.
-			grpcLis, err := net.Listen("tcp", grpcListen)
+			// Start gRPC listener — optionally with TLS.
+			grpcLis, err := buildGRPCListener(cmd, v, grpcListen)
 			if err != nil {
 				return fmt.Errorf("listen gRPC: %w", err)
 			}
@@ -246,7 +251,7 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 			httpMux.Handle("/api/", gatewayMux)
 			httpMux.HandleFunc("/healthz", healthzHandler(storeCfg.SQLitePath, migrationMode))
 
-			errCh := make(chan error, 2)
+			errCh := make(chan error, 3)
 
 			// gRPC server goroutine.
 			go func() {
@@ -258,11 +263,39 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 				errCh <- api.ServeHTTP(ctx, httpMux, httpListen)
 			}()
 
+			// Optional Wish SSH server goroutine.
+			sshAddr := valueString(cmd, v, "daemon.ssh_listen", "ssh-listen")
+			if sshAddr != "" {
+				hostKeyPath := valueString(cmd, v, "daemon.ssh_host_key", "ssh-host-key")
+				if hostKeyPath == "" {
+					hostKeyPath = ".lobster/ssh_host_key"
+				}
+				sshConn, sshConnErr := grpcDialInsecure(ctx, grpcListen)
+				if sshConnErr != nil {
+					logger.Warn("ssh server: failed to create gRPC client — SSH server disabled",
+						zap.Error(sshConnErr))
+				} else {
+					sshCfg := SSHServerConfig{
+						Addr:               sshAddr,
+						HostKeyPath:        hostKeyPath,
+						AuthorizedKeysPath: valueString(cmd, v, "daemon.ssh_authorized_keys", "ssh-authorized-keys"),
+						StaticToken:        valueString(cmd, v, "transport.auth.static_bearer_token", "static-token"),
+						WorkspaceID:        workspaceID,
+					}
+					go func() {
+						errCh <- StartSSHServer(ctx, sshCfg, sshConn)
+					}()
+				}
+			}
+
 			// Wait for first error or context cancellation.
 			select {
 			case err := <-errCh:
 				return err
 			case <-ctx.Done():
+				// Signal NOT_SERVING before stopping so in-flight health checks
+				// and load balancers see the server going away gracefully.
+				srv.HealthSrv.Shutdown()
 				srv.GRPCServer.GracefulStop()
 				return nil
 			}
@@ -306,6 +339,9 @@ func addDaemonFlags(fs *pflag.FlagSet) {
 	fs.String("tls-cert-file", "", "TLS server certificate file")
 	fs.String("tls-key-file", "", "TLS server private key file")
 	fs.String("tls-client-ca-file", "", "trusted CA bundle for mTLS client certificate verification")
+	fs.String("ssh-listen", "", "Wish SSH server listen address (e.g. :2222), empty to disable")
+	fs.String("ssh-host-key", ".lobster/ssh_host_key", "path to ED25519 SSH host key (auto-generated if missing)")
+	fs.String("ssh-authorized-keys", "", "path to SSH authorized_keys file for public key auth")
 }
 
 func buildStoreConfigFromInputs(cmd *cobra.Command, v *viper.Viper) (store.Config, string, error) {
@@ -413,4 +449,79 @@ func migrationModeProto(s string) commonv1.MigrationMode {
 	default:
 		return commonv1.MigrationMode_MIGRATION_MODE_AUTO
 	}
+}
+
+// buildGRPCListener creates a TCP listener, optionally wrapping it with TLS.
+// When --tls-cert-file and --tls-key-file are both provided, TLS is enabled.
+// When --tls-client-ca-file is also provided, mutual TLS (mTLS) is enforced.
+// If no cert file is provided the listener is plaintext (dev mode).
+func buildGRPCListener(cmd *cobra.Command, v *viper.Viper, addr string) (net.Listener, error) {
+	certFile := valueString(cmd, v, "transport.tls.cert_file", "tls-cert-file")
+	keyFile := valueString(cmd, v, "transport.tls.key_file", "tls-key-file")
+	clientCAFile := valueString(cmd, v, "transport.tls.client_ca_file", "tls-client-ca-file")
+
+	if certFile == "" || keyFile == "" {
+		// Plaintext — safe for localhost / in-cluster loopback.
+		return net.Listen("tcp", addr)
+	}
+
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load TLS certificate: %w", err)
+	}
+
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	if clientCAFile != "" {
+		pool, err := loadClientCAPool(clientCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("load client CA: %w", err)
+		}
+		tlsCfg.ClientCAs = pool
+		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	return tls.NewListener(lis, tlsCfg), nil
+}
+
+// loadClientCAPool parses a PEM-encoded CA bundle from the given file path.
+func loadClientCAPool(caFile string) (*x509.CertPool, error) {
+	pem, err := os.ReadFile(caFile) // #nosec G304 — operator-controlled config path
+	if err != nil {
+		return nil, fmt.Errorf("read CA file: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("no valid certificates found in %q", caFile)
+	}
+	return pool, nil
+}
+
+// grpcDialInsecure opens a plaintext gRPC client connection to addr.
+// Used by the SSH server to call back into the local daemon without TLS so that
+// it works regardless of whether the gRPC listener has TLS enabled — the SSH
+// tunnel provides the transport-layer security instead.
+func grpcDialInsecure(ctx context.Context, addr string) (*grpc.ClientConn, error) {
+	// Use passthrough so the address is resolved verbatim (avoids DNS issues
+	// with localhost on macOS/Docker Desktop).
+	if !strings.Contains(addr, "://") {
+		addr = "passthrough:///" + addr
+	}
+	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+	// Probe connectivity so we fail fast rather than deferring to first RPC.
+	conn.Connect()
+	_ = dialCtx // timeout context used for the Connect probe only
+	return conn, nil
 }

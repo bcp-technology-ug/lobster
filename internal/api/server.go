@@ -28,6 +28,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -66,6 +68,7 @@ type Server struct {
 	StackSvc   *stacksvc.Service
 	AdminSvc   *adminsvc.Service
 	IntSvc     *integrationsvc.Service
+	HealthSrv  *health.Server
 }
 
 // Build constructs a fully wired Server without starting any listeners.
@@ -118,6 +121,17 @@ func Build(st *store.Store, cfg Config, svc Services) (*Server, error) {
 	adminv1.RegisterAdminServiceServer(grpcSrv, adminS)
 	integrationsv1.RegisterIntegrationServiceServer(grpcSrv, intS)
 
+	// gRPC standard health check protocol (grpc.health.v1.Health).
+	// Enables: grpcurl health checks, k8s liveness probes, load balancers.
+	healthSrv := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(grpcSrv, healthSrv)
+	healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus("lobster.v1.run.RunService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus("lobster.v1.plan.PlanService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus("lobster.v1.stack.StackService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus("lobster.v1.admin.AdminService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus("lobster.v1.integrations.IntegrationService", grpc_health_v1.HealthCheckResponse_SERVING)
+
 	reflection.Register(grpcSrv)
 
 	return &Server{
@@ -127,6 +141,7 @@ func Build(st *store.Store, cfg Config, svc Services) (*Server, error) {
 		StackSvc:   stackS,
 		AdminSvc:   adminS,
 		IntSvc:     intS,
+		HealthSrv:  healthSrv,
 	}, nil
 }
 
