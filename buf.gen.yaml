@@ -4,17 +4,17 @@ plugins:
   - remote: buf.build/protocolbuffers/go
     out: gen/go
     opt:
-      - paths=source_relative
+      - module=github.com/bcp-technology/lobster/gen/go
 
   - remote: buf.build/grpc/go
     out: gen/go
     opt:
-      - paths=source_relative
+      - module=github.com/bcp-technology/lobster/gen/go
 
   - remote: buf.build/grpc-ecosystem/gateway
     out: gen/go
     opt:
-      - paths=source_relative
+      - module=github.com/bcp-technology/lobster/gen/go
 
   - local: protoc-gen-openapi
     out: gen/openapi
