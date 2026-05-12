@@ -53,8 +53,9 @@ func NewRootCommand() *cobra.Command {
 	var cfgFile string
 
 	root := &cobra.Command{
-		Use:   "lobsterd",
-		Short: "Lobster daemon process",
+		Use:     "lobsterd",
+		Short:   "Lobster daemon process",
+		Version: version,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			return initViper(v, cfgFile)
 		},

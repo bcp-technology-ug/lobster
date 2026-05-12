@@ -17,7 +17,9 @@ Development model:
 - GitHub contributions are included in the same ongoing internal development stream.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev)
+[![CI](https://github.com/bcp-technology-ug/lobster/actions/workflows/ci.yml/badge.svg)](https://github.com/bcp-technology-ug/lobster/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bcp-technology-ug/lobster)](https://github.com/bcp-technology-ug/lobster/releases/latest)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 
 ---
@@ -71,7 +73,8 @@ Most E2E testing tools are either SaaS products with billing tiers, framework-sp
 
 ### Prerequisites
 
-- [Go 1.22+](https://go.dev/dl/)
+- [Go 1.25+](https://go.dev/dl/)
+- A C compiler (`gcc` on Linux/macOS, [MinGW-w64](https://www.mingw-w64.org/) on Windows) — required because lobster embeds SQLite via CGO
 - [Docker](https://docs.docker.com/get-docker/) with Compose v2
 
 ### Install
@@ -126,15 +129,13 @@ lobster run --executor-mode daemon --executor-addr dns:///lobsterd.internal:9443
 
 ### Current status
 
-Lobster is currently in design-to-implementation transition.
+Lobster `v0.1.0` is the initial public release.
 
-- v0.1 focus: reliable core execution loop (`plan`, `validate`, `lint`, `config`, `run`) with matrix-capable CI workflows.
-- v0.1 runtime model uses split binaries: `lobster` (client) and `lobsterd` (remote daemon).
-- v0.1 includes SemVer + explicit extension API version contract checks for compatibility.
-- v0.1 includes workspace-aware planning and plan-artifact apply workflows.
-- Release channels: `stable` and `nightly`.
-- Before v1.0, minor releases may include breaking changes with explicit deprecation warnings and removal targets.
-- Runtime plugin loading and richer interactive TUI behavior are planned for later iterations.
+- The core execution loop (`init`, `validate`, `lint`, `plan`, `run`, `config`) is stable.
+- Split-binary model: `lobster` (CLI client) and `lobsterd` (remote daemon) with gRPC + HTTP/JSON gateway.
+- SemVer versioning from this release onwards; `lobster --version` and `lobsterd --version` reflect the release tag.
+- Before v1.0, minor versions may include breaking changes with explicit deprecation warnings and removal targets.
+- Runtime plugin loading and a richer interactive TUI are planned for later iterations.
 
 ---
 

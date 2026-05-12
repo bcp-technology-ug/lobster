@@ -4,7 +4,8 @@ This guide walks through installing lobster, creating your first project, and ru
 
 ## Prerequisites
 
-- Go 1.22 or newer
+- Go 1.25 or newer
+- A C compiler (`gcc` / `clang` on Linux and macOS, [MinGW-w64](https://www.mingw-w64.org/) on Windows) — lobster embeds SQLite via CGO and requires a C toolchain at install time
 - Docker with Compose v2
 - A project that can be started with Docker Compose
 - Optional: network path and credentials for a remote Lobster daemon host

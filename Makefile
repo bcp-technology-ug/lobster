@@ -5,15 +5,23 @@ IMAGE_CLI    ?= ghcr.io/bcp-technology-ug/lobster
 IMAGE_DAEMON ?= ghcr.io/bcp-technology-ug/lobsterd
 TAG          ?= dev
 
+# Resolve the version string for local builds from the nearest git tag, falling
+# back to "dev" when there is no tag in scope (e.g. a fresh clone).
+GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+
+# ld flags injected into every binary.  Strip debug info for smaller binaries.
+LD_CLI    := -s -w -X github.com/bcp-technology-ug/lobster/internal/cli.Version=$(GIT_TAG)
+LD_DAEMON := -s -w -X github.com/bcp-technology-ug/lobster/internal/daemon.version=$(GIT_TAG)
+
 # Build both binaries into ./bin/
 build:
-	go build -o bin/lobster   ./cmd/lobster
-	go build -o bin/lobsterd  ./cmd/lobsterd
+	go build -trimpath -ldflags="$(LD_CLI)"    -o bin/lobster   ./cmd/lobster
+	go build -trimpath -ldflags="$(LD_DAEMON)" -o bin/lobsterd  ./cmd/lobsterd
 
 # Install the CLI into $GOPATH/bin (or $GOBIN if set)
 install:
-	go install ./cmd/lobster
-	go install ./cmd/lobsterd
+	go install -trimpath -ldflags="$(LD_CLI)"    ./cmd/lobster
+	go install -trimpath -ldflags="$(LD_DAEMON)" ./cmd/lobsterd
 
 test: test-unit test-all
 
@@ -27,7 +35,7 @@ test-unit:
 COMPOSE_FILES    := -f config/docker-compose.yml
 
 test-all:
-	go install ./cmd/lobster
+	go install -trimpath -ldflags="$(LD_CLI)" ./cmd/lobster
 	docker compose $(COMPOSE_FILES) build --quiet
 	# Clean up any containers from a previous run before starting fresh.
 	docker compose $(COMPOSE_FILES) down -v 2>/dev/null || true
@@ -36,7 +44,7 @@ test-all:
 
 # Run only the CLI scenarios (no daemon, no Docker).
 test-cli:
-	go install ./cmd/lobster
+	go install -trimpath -ldflags="$(LD_CLI)" ./cmd/lobster
 	cd tests && lobster run \
 	  --tags '~@docker ~@daemon ~@integration' \
 	  --no-compose \
@@ -45,7 +53,7 @@ test-cli:
 # Run only the @daemon scenarios against an already-running lobsterd.
 # Builds and starts lobsterd automatically via lobster.yaml compose config.
 test-daemon:
-	go install ./cmd/lobster
+	go install -trimpath -ldflags="$(LD_CLI)" ./cmd/lobster
 	docker compose $(COMPOSE_FILES) build --quiet
 	docker compose $(COMPOSE_FILES) down -v 2>/dev/null || true
 	docker rm -f lobster-self-tests-lobsterd-1 2>/dev/null || true
@@ -55,7 +63,7 @@ test-daemon:
 # These test image build, compose up/down, health endpoint, persistence.
 # Requires Docker on the host.
 test-docker:
-	go install ./cmd/lobster
+	go install -trimpath -ldflags="$(LD_CLI)" ./cmd/lobster
 	lobster run \
 	  --features 'tests/features/docker-*.feature' \
 	  --tags "@docker" \
@@ -64,6 +72,7 @@ test-docker:
 	  --migrations-dir migrations
 
 lint:
+	golangci-lint run --timeout=5m
 	go vet ./...
 
 clean:
