@@ -71,7 +71,7 @@ func (s *Service) ListPlans(ctx context.Context, req *planv1.ListPlansRequest) (
 
 	rows, err := s.store.Plan.ListExecutionPlansPage(ctx, planstore.ListExecutionPlansPageParams{
 		WorkspaceID:     req.WorkspaceId,
-		CursorCreatedAt: ptrStrToInterface(cursorCreatedAt),
+		CursorCreatedAt: convert.PtrStrToInterface(cursorCreatedAt),
 		CursorPlanID:    cursorPlanID,
 		PageSize:        pageSize,
 	})
@@ -124,11 +124,4 @@ func (s *Service) attachPlanDetail(ctx context.Context, plan *planv1.ExecutionPl
 		return err
 	}
 	return nil
-}
-
-func ptrStrToInterface(s *string) interface{} {
-	if s == nil {
-		return nil
-	}
-	return *s
 }

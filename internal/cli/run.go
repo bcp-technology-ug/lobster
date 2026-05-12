@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -48,6 +49,7 @@ func newRunCommand(v *viper.Viper) *cobra.Command {
 	// Infrastructure.
 	cmd.Flags().StringSlice("compose", nil, "docker-compose file(s)")
 	cmd.Flags().StringSlice("compose-profile", nil, "compose profile(s) to activate")
+	cmd.Flags().Bool("no-compose", false, "skip stack orchestration even if compose files are configured")
 
 	// Execution options.
 	cmd.Flags().Bool("fail-fast", false, "stop after first scenario failure")
@@ -185,8 +187,13 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	reportJUnit, _ := cmd.Flags().GetString("report-junit")
 
 	// ── run request ─────────────────────────────────────────────────────────
+	workspaceID := v.GetString("workspace.selected")
+	if workspaceID == "" {
+		workspaceID = "default"
+	}
 	req := &runv1.RunSyncRequest{
 		Selector: &runv1.RunSelector{
+			WorkspaceId:   workspaceID,
 			TagExpression: tagExpr,
 		},
 		Execution: &configv1.ExecutionConfig{
@@ -266,12 +273,13 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 
 	// Orchestrator.
 	var orch runner.Orchestrator
+	noCompose, _ := cmd.Flags().GetBool("no-compose")
 	composePaths, _ := cmd.Flags().GetStringSlice("compose")
 	composeProfiles, _ := cmd.Flags().GetStringSlice("compose-profile")
 	if len(composePaths) == 0 {
 		composePaths = v.GetStringSlice("compose.files")
 	}
-	if len(composePaths) > 0 {
+	if len(composePaths) > 0 && !noCompose {
 		orchSetup := &orchestration.Setup{
 			ComposeFiles: composePaths,
 			Profiles:     composeProfiles,
@@ -428,7 +436,7 @@ func runWithDaemonSync(
 	ctx context.Context,
 	client runv1.RunServiceClient,
 	req *runv1.RunSyncRequest,
-	_, _ string, // reportJSONPath, reportJUnitPath reserved
+	reportJSONPath, reportJUnitPath string,
 	cmd *cobra.Command,
 ) error {
 	stream, err := client.RunSync(ctx, req)
@@ -438,11 +446,15 @@ func runWithDaemonSync(
 		return &ExitError{Code: exitCodeForRunError(err)}
 	}
 
+	runResult := &reports.RunResult{StartedAt: time.Now()}
 	var failed bool
 	for {
 		ev, recvErr := stream.Recv()
 		if recvErr != nil {
 			break
+		}
+		if runResult.RunID == "" {
+			runResult.RunID = ev.GetRunId()
 		}
 		switch p := ev.GetPayload().(type) {
 		case *runv1.RunEvent_RunStatus:
@@ -452,7 +464,15 @@ func runWithDaemonSync(
 			}
 		case *runv1.RunEvent_ScenarioResult:
 			sc := p.ScenarioResult
-			if sc.GetStatus() == commonv1.ScenarioStatus_SCENARIO_STATUS_FAILED {
+			scResult := &reports.ScenarioResult{
+				DeterministicID: sc.GetScenarioId(),
+				Status:          protoScenarioStatusToReports(sc.GetStatus()),
+			}
+			if dur := sc.GetDuration(); dur != nil {
+				scResult.Duration = dur.AsDuration()
+			}
+			runResult.Scenarios = append(runResult.Scenarios, scResult)
+			if scResult.Status == reports.StatusFailed {
 				failed = true
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(),
 					ui.StyleError.Render(ui.IconCross+" "+sc.GetScenarioId()))
@@ -476,10 +496,36 @@ func runWithDaemonSync(
 		}
 	}
 
+	runResult.Duration = time.Since(runResult.StartedAt)
+	runResult.Finalize()
+
+	if reportJSONPath != "" {
+		rep := reports.NewJSONReporter(reportJSONPath)
+		rep.RunFinished(runResult)
+	}
+	if reportJUnitPath != "" {
+		rep := reports.NewJUnitReporter(reportJUnitPath)
+		rep.RunFinished(runResult)
+	}
+
 	if failed {
 		return &ExitError{Code: ExitScenarioFailure}
 	}
 	return nil
+}
+
+// protoScenarioStatusToReports converts a proto ScenarioStatus to reports.Status.
+func protoScenarioStatusToReports(s commonv1.ScenarioStatus) reports.Status {
+	switch s {
+	case commonv1.ScenarioStatus_SCENARIO_STATUS_PASSED:
+		return reports.StatusPassed
+	case commonv1.ScenarioStatus_SCENARIO_STATUS_FAILED:
+		return reports.StatusFailed
+	case commonv1.ScenarioStatus_SCENARIO_STATUS_SKIPPED:
+		return reports.StatusSkipped
+	default:
+		return reports.StatusUndefined
+	}
 }
 
 // runWithDaemonAsync submits an async run and prints the run ID.
@@ -489,9 +535,15 @@ func runWithDaemonAsync(
 	req *runv1.RunSyncRequest,
 	cmd *cobra.Command,
 ) error {
+	// Generate a unique idempotency key for this submission.
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	idempKey := fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+
 	asyncReq := &runv1.RunAsyncRequest{
-		Selector:  req.Selector,
-		Execution: req.Execution,
+		Selector:       req.Selector,
+		Execution:      req.Execution,
+		IdempotencyKey: idempKey,
 	}
 	resp, err := client.RunAsync(ctx, asyncReq)
 	if err != nil {
@@ -499,9 +551,12 @@ func runWithDaemonAsync(
 			err.Error(), "", ""))
 		return &ExitError{Code: exitCodeForRunError(err)}
 	}
-	_, _ = fmt.Fprint(cmd.OutOrStdout(),
+	// Print only the run ID to stdout so it can be captured by scripts/tests.
+	// Human-friendly guidance goes to stderr to avoid polluting the output.
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), resp.GetRunId())
+	_, _ = fmt.Fprint(cmd.ErrOrStderr(),
 		ui.RenderSuccess("Run submitted", "Run ID: "+resp.GetRunId()))
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(),
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
 		ui.StyleMuted.Render("Use 'lobster run watch --run-id "+resp.GetRunId()+"' to follow progress."))
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -103,6 +104,10 @@ func registerShellSteps(r *steps.Registry) error {
 func stepRunCommand(ctx *steps.ScenarioContext, args ...string) error {
 	cmd := exec.Command("sh", "-c", unescapeArg(args[0])) //nolint:gosec // deliberate shell step
 	cmd.Env = os.Environ()
+	// Inject suite-scoped variables first so scenario-scoped ones take precedence.
+	for k, v := range ctx.SuiteVars {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
 	for k, v := range ctx.Variables {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
@@ -111,12 +116,44 @@ func stepRunCommand(ctx *steps.ScenarioContext, args ...string) error {
 
 // stepRunLobster handles: I run lobster "..."
 // The argument string is split with the shlex splitter so quoted flags work.
+// When the scenario has changed into a temporary directory (varWorkDir is set),
+// this function injects LOBSTER_PERSISTENCE_MIGRATIONS_DIR into the subprocess
+// environment so sub-lobster invocations can find the schema files.
+// Commands that don't use persistence (init, lint, validate) ignore the var.
 func stepRunLobster(ctx *steps.ScenarioContext, args ...string) error {
-	parts, err := splitArgs(unescapeArg(args[0]))
+	// Expand ${VAR} references from the scenario variable map before splitting.
+	// Unlike stepRunCommand (which uses sh -c), this step builds an exec.Cmd
+	// directly, so shell variable expansion is not automatic.
+	rawArgs := os.Expand(unescapeArg(args[0]), func(key string) string {
+		if v, ok := ctx.Variables[key]; ok {
+			return v
+		}
+		if v, ok := ctx.SuiteVars[key]; ok {
+			return v
+		}
+		return "${" + key + "}"
+	})
+	parts, err := splitArgs(rawArgs)
 	if err != nil {
 		return fmt.Errorf("parse lobster arguments: %w", err)
 	}
 	cmd := exec.Command(lobsterBin(), parts...) //nolint:gosec // deliberate exec step
+	if orig := ctx.Variables[varWorkDir]; orig != "" {
+		// Look for migrations/ in the original dir (running from repo root) and
+		// also one level up (running from a subdirectory like tests/).
+		candidates := []string{
+			filepath.Join(orig, "migrations"),
+			filepath.Join(orig, "..", "migrations"),
+		}
+		for _, migrationsAbs := range candidates {
+			if abs, absErr := filepath.Abs(migrationsAbs); absErr == nil {
+				if _, statErr := os.Stat(abs); statErr == nil {
+					cmd.Env = append(os.Environ(), "LOBSTER_PERSISTENCE_MIGRATIONS_DIR="+abs)
+					break
+				}
+			}
+		}
+	}
 	return runAndCapture(ctx, cmd)
 }
 

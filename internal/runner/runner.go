@@ -7,9 +7,11 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
+	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
 	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
 	"github.com/bcp-technology/lobster/internal/integrations"
 	"github.com/bcp-technology/lobster/internal/reports"
@@ -50,6 +52,10 @@ type RunConfig struct {
 	// name matches the regular expression.
 	ScenarioRegex string
 
+	// CompiledScenarioRegex is the compiled form of ScenarioRegex. It is set
+	// by resolveRunConfig so handlers never recompile on every invocation.
+	CompiledScenarioRegex *regexp.Regexp
+
 	// ScenarioIDs, when non-empty, restricts execution to scenarios with a
 	// matching DeterministicID. Populated by --from-plan.
 	ScenarioIDs []string
@@ -76,11 +82,22 @@ type Runner struct {
 	reporter     reports.Reporter       // may be nil; falls back to ConsoleReporter when nil
 	adapters     *integrations.Registry // may be nil; adapter lifecycle skipped when nil
 
+	// maxConcurrent caps the number of simultaneous RunAsync goroutines.
+	// A nil channel means no limit.
+	sem chan struct{}
+
 	cancelMu sync.Mutex
 	cancels  map[string]context.CancelFunc
+
+	// busMu guards buses, the in-process event bus used by StreamRunEvents to
+	// receive live events without polling the database.
+	busMu sync.RWMutex
+	buses map[string]chan *runv1.RunEvent
 }
 
 // New creates a Runner. orchestrator may be nil.
+// maxConcurrentRuns controls how many RunAsync goroutines may run at once;
+// pass 0 for no limit.
 func New(cfgFn ConfigProvider, orch Orchestrator, reg *steps.Registry, st *store.Store) *Runner {
 	return &Runner{
 		configFn:     cfgFn,
@@ -88,7 +105,17 @@ func New(cfgFn ConfigProvider, orch Orchestrator, reg *steps.Registry, st *store
 		registry:     reg,
 		store:        st,
 		cancels:      make(map[string]context.CancelFunc),
+		buses:        make(map[string]chan *runv1.RunEvent),
 	}
+}
+
+// WithMaxConcurrentRuns sets the cap on simultaneous RunAsync goroutines.
+// Must be called before the first RunAsync invocation. Pass 0 for no limit.
+func (r *Runner) WithMaxConcurrentRuns(n int) *Runner {
+	if n > 0 {
+		r.sem = make(chan struct{}, n)
+	}
+	return r
 }
 
 // WithHooks attaches a HookRegistry to the Runner and returns the receiver.
@@ -126,6 +153,57 @@ func (r *Runner) Cancel(_ context.Context, runID string) error {
 		cancel()
 	}
 	return nil
+}
+
+// SubscribeRunEvents returns the live event channel for a run that is currently
+// executing in this process. The channel is closed when the run finishes.
+// Returns (nil, false) when the run is not in-flight (already complete or not
+// started), in which case callers should fall back to DB replay.
+func (r *Runner) SubscribeRunEvents(runID string) (<-chan *runv1.RunEvent, bool) {
+	r.busMu.RLock()
+	ch, ok := r.buses[runID]
+	r.busMu.RUnlock()
+	return ch, ok
+}
+
+// openBus creates the buffered event channel for a run. Must be called before
+// the first event is published so that StreamRunEvents can subscribe in time.
+func (r *Runner) openBus(runID string) {
+	ch := make(chan *runv1.RunEvent, 1024)
+	r.busMu.Lock()
+	r.buses[runID] = ch
+	r.busMu.Unlock()
+}
+
+// publishToBus sends evt to the in-process bus for runID. Non-blocking: if the
+// 1024-event buffer is full the event is silently dropped (this should not
+// occur in practice — a backpressure condition indicates a stalled consumer).
+func (r *Runner) publishToBus(runID string, evt *runv1.RunEvent) {
+	r.busMu.RLock()
+	ch, ok := r.buses[runID]
+	r.busMu.RUnlock()
+	if !ok {
+		return
+	}
+	select {
+	case ch <- evt:
+	default:
+		// Consumer is not keeping up; drop the live event.
+		// The event is still persisted to DB so historical replay is unaffected.
+	}
+}
+
+// closeBus closes and removes the channel for runID.
+func (r *Runner) closeBus(runID string) {
+	r.busMu.Lock()
+	ch, ok := r.buses[runID]
+	if ok {
+		delete(r.buses, runID)
+	}
+	r.busMu.Unlock()
+	if ok {
+		close(ch)
+	}
 }
 
 // Planner implements the plansvc.Planner interface.

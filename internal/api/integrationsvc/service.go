@@ -48,7 +48,7 @@ func (s *Service) ListIntegrationAdapters(ctx context.Context, req *integrations
 	}
 
 	rows, err := s.store.Integrations.ListIntegrationAdaptersPage(ctx, integrationstore.ListIntegrationAdaptersPageParams{
-		CursorUpdatedAt: ptrStrToInterface(cursorUpdatedAt),
+		CursorUpdatedAt: convert.PtrStrToInterface(cursorUpdatedAt),
 		CursorAdapterID: cursorAdapterID,
 		PageSize:        pageSize,
 	})
@@ -163,13 +163,6 @@ func (s *Service) ValidateIntegrationAdapter(ctx context.Context, req *integrati
 		return nil, status.Errorf(codes.Internal, "validate: %v", err)
 	}
 	return &integrationsv1.ValidateIntegrationAdapterResponse{Ok: ok}, nil
-}
-
-func ptrStrToInterface(s *string) interface{} {
-	if s == nil {
-		return nil
-	}
-	return *s
 }
 
 func nullableStr(s string) *string {

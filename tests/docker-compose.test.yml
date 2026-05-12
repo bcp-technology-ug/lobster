@@ -1,0 +1,21 @@
+# docker-compose.test.yml — overrides for lobster self-tests
+#
+# Overrides ports to avoid conflicts with a local lobsterd on default ports,
+# and uses /tmp for the SQLite database so no named volume is needed.
+
+services:
+  lobsterd:
+    command:
+      - start
+      - --listen
+      - :9443
+      - --http-listen
+      - :8080
+      - --sqlite-path
+      - /tmp/lobster-test.db
+      - --migrations-dir
+      - /app/migrations
+      - --insecure-local
+    ports:
+      - "29443:9443"
+      - "28080:8080"

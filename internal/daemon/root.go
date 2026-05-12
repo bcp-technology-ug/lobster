@@ -18,6 +18,7 @@ import (
 	"github.com/bcp-technology/lobster/internal/config"
 	"github.com/bcp-technology/lobster/internal/integrations"
 	"github.com/bcp-technology/lobster/internal/integrations/keycloak"
+	lobsterlog "github.com/bcp-technology/lobster/internal/log"
 	"github.com/bcp-technology/lobster/internal/orchestration"
 	"github.com/bcp-technology/lobster/internal/runner"
 	"github.com/bcp-technology/lobster/internal/steps"
@@ -63,6 +64,10 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()
+
+			// Retrieve the logger injected by main and attach it to the start context.
+			logger := lobsterlog.FromContext(cmd.Context())
+			ctx = lobsterlog.WithLogger(ctx, logger)
 
 			storeCfg, migrationMode, err := buildStoreConfigFromInputs(cmd, v)
 			if err != nil {
@@ -138,6 +143,15 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 			daemonHooks := steps.NewHookRegistry()
 			builtin.RegisterHooks(daemonHooks)
 			runnerImpl = runnerImpl.WithHooks(daemonHooks)
+			// Apply concurrency cap: prefer daemon.max_concurrent_runs, then
+			// execution.max_concurrent_runs, default 0 (unlimited).
+			maxConcurrent := v.GetInt("daemon.max_concurrent_runs")
+			if maxConcurrent == 0 {
+				maxConcurrent = v.GetInt("execution.max_concurrent_runs")
+			}
+			if maxConcurrent > 0 {
+				runnerImpl = runnerImpl.WithMaxConcurrentRuns(maxConcurrent)
+			}
 			plannerImpl := runner.NewPlanner(runCfgFn, st)
 
 			// --- integrations ---
@@ -184,6 +198,7 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 			}
 			srv, err := api.Build(st, api.Config{
 				Auth:              authCfg,
+				Logger:            logger,
 				Version:           version,
 				WorkspaceID:       workspaceID,
 				ActiveProfile:     valueString(cmd, v, "profile", "profile"),

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bcp-technology/lobster/internal/api/middleware"
 	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology/lobster/internal/api/middleware"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

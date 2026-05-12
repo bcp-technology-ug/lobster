@@ -1,0 +1,72 @@
+# docker-compose.yml — lobsterd local development stack
+#
+# Usage (run from the repo root):
+#   make docker-up               # build + start daemon
+#   docker compose -f config/docker-compose.yml logs -f
+#   make docker-down             # stop; data volume is preserved
+#   docker compose -f config/docker-compose.yml down -v  # wipe volume too
+#
+# Testing with the lobster CLI from the host:
+#   lobster run \
+#     --executor-mode daemon \
+#     --executor-addr localhost:9443 \
+#     --insecure-local \
+#     --features tests/features/*.feature \
+#     --ci
+#
+# Testing with the lobster CLI from another container (same compose network):
+#   docker run --rm \
+#     --network lobster_default \
+#     ghcr.io/bcp-technology-ug/lobster:dev \
+#     run --executor-mode daemon --executor-addr lobsterd:9443 --insecure-local \
+#         --features /workspace/features/*.feature --ci
+
+name: lobster
+
+services:
+  lobsterd:
+    build:
+      context: ..
+      dockerfile: config/Dockerfile.lobsterd
+    image: ghcr.io/bcp-technology-ug/lobsterd:dev
+    restart: unless-stopped
+
+    # Override CMD args here if you want a static token instead of --insecure-local.
+    # Example:
+    #   command: ["start", "--listen", ":9443", "--http-listen", ":8080",
+    #             "--migrations-dir", "/app/migrations",
+    #             "--static-token", "changeme"]
+    command:
+      - start
+      - --listen
+      - :9443
+      - --http-listen
+      - :8080
+      - --sqlite-path
+      - /data/lobster.db
+      - --migrations-dir
+      - /app/migrations
+      - --insecure-local
+
+    ports:
+      # gRPC — connect with: --executor-addr localhost:${LOBSTERD_GRPC_PORT:-9443}
+      - "${LOBSTERD_GRPC_PORT:-9443}:9443"
+      # HTTP/JSON gateway — API docs at http://localhost:${LOBSTERD_HTTP_PORT:-8080}/api/
+      - "${LOBSTERD_HTTP_PORT:-8080}:8080"
+
+    volumes:
+      # Named volume: SQLite database persists across container restarts.
+      # Use `docker compose down -v` to wipe it for a clean slate.
+      - lobsterd-data:/data
+
+    healthcheck:
+      # /healthz is served by the HTTP gateway on port 8080.
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  lobsterd-data:
+    driver: local

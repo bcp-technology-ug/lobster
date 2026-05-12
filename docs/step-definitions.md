@@ -4,34 +4,101 @@ Step definitions connect natural-language Gherkin steps to executable behavior.
 
 ## Built-in step library
 
-Lobster provides a built-in set of reusable steps for common E2E workflows.
+Lobster ships a built-in step library covering HTTP, shell, filesystem, and service readiness
+checks. All built-in steps are registered automatically; no extra configuration is required.
 
-Planned categories:
+### HTTP steps (`builtin:http`)
 
-- Service state checks
-- HTTP request and response assertions
-- JSONPath and body assertions
-- Retry and wait primitives for eventually consistent flows
-- Basic auth/token flow helpers
-- Data Table-driven steps for structured inputs
+| Gherkin pattern | Description |
+|---|---|
+| `I send a METHOD request to "PATH"` | Sends an HTTP request (no body). METHOD is one of GET POST PUT PATCH DELETE HEAD OPTIONS. |
+| `I send a METHOD request to "PATH" with body:` | Sends a request using the step's DocString as the body. The DocString media type sets `Content-Type` (defaults to `application/json`). |
+| `I send a METHOD request to "PATH" with JSON body "BODY"` | Sends a request with an inline JSON body. |
+| `I set the request header "NAME" to "VALUE"` | Adds a default header applied to all subsequent requests in the scenario. |
+| `I set the base URL to "URL"` | Overrides the base URL for subsequent requests in the scenario. |
+| `the response status should be CODE` | Asserts the last response has an exact HTTP status code. |
+| `the response status should not be CODE` | Asserts the last response does not have the given status code. |
+| `the response body should contain "TEXT"` | Asserts the response body string contains TEXT. |
+| `the response body should not contain "TEXT"` | Asserts the response body does not contain TEXT. |
+| `the response header "NAME" should equal "VALUE"` | Asserts a response header has an exact value. |
+| `the response body should be valid JSON` | Asserts the response body can be parsed as JSON. |
+| `I store the response body in variable "NAME"` | Stores the full response body string into a scenario variable. |
 
-Built-in auth modes in v0.1:
-
-- Bearer token
-- Basic auth
-- API key header
-- mTLS client certificate authentication
-- OAuth device/code flow helpers
-
-Example built-in usage:
+Example:
 
 ```gherkin
 Scenario: Health endpoint
-  Given the service "api" is running
+  Given I set the base URL to "http://localhost:8080"
   When I send a GET request to "/health"
   Then the response status should be 200
   And the response body should contain "ok"
 ```
+
+### Shell steps (`builtin:shell`)
+
+Arguments support backslash escapes (`\"` for a literal quote, `\\` for a backslash).
+After running a command the captured outputs are available as scenario variables
+`__shell_stdout`, `__shell_stderr`, and `__shell_exit_code`.
+
+| Gherkin pattern | Description |
+|---|---|
+| `I run the command "CMD"` | Executes CMD via `sh -c`. Scenario variables are injected into the subprocess environment. |
+| `I run lobster "ARGS"` | Runs the `lobster` binary (or `$LOBSTER_BIN`) with shell-quoted ARGS. |
+| `the exit code should be N` | Asserts the last command exited with code N. |
+| `the exit code should not be N` | Asserts the last command did not exit with code N. |
+| `the output should contain "TEXT"` | Asserts stdout contains TEXT. |
+| `the output should not contain "TEXT"` | Asserts stdout does not contain TEXT. |
+| `the stderr should contain "TEXT"` | Asserts stderr contains TEXT. |
+| `the stderr should not contain "TEXT"` | Asserts stderr does not contain TEXT. |
+| `the output should be valid JSON` | Asserts stdout is valid JSON. |
+| `I store the output in variable "NAME"` | Stores stdout into a scenario variable. |
+
+Example:
+
+```gherkin
+Scenario: CLI help flag
+  When I run lobster "--help"
+  Then the exit code should be 0
+  And the output should contain "lobster"
+```
+
+### Filesystem steps (`builtin:fs`)
+
+| Gherkin pattern | Description |
+|---|---|
+| `I am in a new temporary directory` | Creates a temp directory and changes into it. Cleaned up in AfterScenario. |
+| `the file "PATH" should exist` | Asserts a file exists at PATH. |
+| `the file "PATH" should not exist` | Asserts no file exists at PATH. |
+| `the directory "PATH" should exist` | Asserts a directory exists at PATH. |
+| `the directory "PATH" should not exist` | Asserts no directory exists at PATH. |
+| `the file "PATH" should contain "TEXT"` | Asserts a file's contents contain TEXT. |
+| `I create the file "PATH" with content:` | Creates a file at PATH with the step's DocString as content. |
+| `I create the file "PATH" containing "CONTENT"` | Creates a file at PATH with inline CONTENT. |
+
+### Service readiness steps (`builtin:service`)
+
+| Gherkin pattern | Description |
+|---|---|
+| `the service "NAME" is running` | GET `{base_url}/{NAME}/health` and assert 2xx. |
+| `the service "NAME" is running at "URL"` | GET the explicit URL and assert 2xx. |
+| `I wait up to Ns for the service "NAME" to be running` | Polls `{base_url}/{NAME}/health` up to N seconds until 2xx. |
+
+Example:
+
+```gherkin
+Scenario: Wait for API readiness
+  Given I wait up to 30s for the service "api" to be running
+  When I send a GET request to "/api/users"
+  Then the response status should be 200
+```
+
+### Variable interpolation
+
+Scenario variables can be referenced in step arguments using `${VAR_NAME}` syntax
+(planned for v0.2). In v0.1, variables set by steps such as
+`I store the output in variable "NAME"` or `I store the response body in variable "NAME"`
+are available in subsequent step handlers via `ScenarioContext.Variables` and are
+also injected as environment variables when running shell commands.
 
 Gherkin coverage in v0.1:
 

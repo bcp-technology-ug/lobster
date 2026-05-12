@@ -3,7 +3,9 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
@@ -11,10 +13,12 @@ import (
 	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
 	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
 	runstore "github.com/bcp-technology/lobster/gen/sqlc/run"
+	"github.com/bcp-technology/lobster/internal/log"
 	"github.com/bcp-technology/lobster/internal/parser"
 	"github.com/bcp-technology/lobster/internal/reports"
 	"github.com/bcp-technology/lobster/internal/steps"
 	"github.com/bcp-technology/lobster/internal/steps/builtin"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -30,6 +34,11 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 	seq := newSeq()
 	now := time.Now().UTC()
 	nowStr := now.Format(time.RFC3339Nano)
+
+	// Open the in-process event bus before persisting or sending any events so
+	// that a concurrent StreamRunEvents call subscribes before we publish.
+	r.openBus(runID)
+	defer r.closeBus(runID)
 
 	// Persist run record so it is visible via GetRun / ListRuns immediately.
 	if r.store != nil {
@@ -58,11 +67,13 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 		}); createErr != nil {
 			return status.Errorf(codes.Internal, "create run record: %v", createErr)
 		}
-		_ = r.store.Run.UpdateRunStatus(ctx, runstore.UpdateRunStatusParams{
+		if updateErr := r.store.Run.UpdateRunStatus(ctx, runstore.UpdateRunStatusParams{
 			RunID:     runID,
 			Status:    int64(commonv1.RunStatus_RUN_STATUS_RUNNING),
 			StartedAt: &nowStr,
-		})
+		}); updateErr != nil {
+			log.FromContext(ctx).Warn("failed to update run status to RUNNING", zap.String("run_id", runID), zap.Error(updateErr))
+		}
 	}
 
 	initialEvt := runStatusEvent(runID, seq(), commonv1.RunStatus_RUN_STATUS_RUNNING, false)
@@ -131,15 +142,11 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 
 	suiteVars := mergeMaps(cfg.Variables, req.Variables)
 
-	// Pre-compile optional scenario name regex.
-	var scenarioRegex *regexp.Regexp
-	if cfg.ScenarioRegex != "" {
-		var compileErr error
-		scenarioRegex, compileErr = regexp.Compile(cfg.ScenarioRegex)
-		if compileErr != nil {
-			return status.Errorf(codes.InvalidArgument, "invalid scenario regex: %v", compileErr)
-		}
-	}
+	// scenarioRegex is pre-compiled in resolveRunConfig; use directly.
+	scenarioRegex := cfg.CompiledScenarioRegex
+
+	// scenarioOrdinal tracks insertion order for the run_scenarios table.
+	var scenarioOrdinal int64
 
 	for _, feature := range features {
 		for _, scenario := range feature.Scenarios {
@@ -178,7 +185,9 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 						sc.Err = hookErr
 					} else {
 						r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
-						_ = r.hooks.RunAfterScenario(scenCtx)
+						if afterErr := r.hooks.RunAfterScenario(scenCtx); afterErr != nil {
+							log.FromContext(ctx).Warn("AfterScenario hook error", zap.String("run_id", runID), zap.Error(afterErr))
+						}
 					}
 				} else {
 					r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
@@ -186,6 +195,30 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 			}
 			reporter.ScenarioFinished(sc)
 			runResult.Scenarios = append(runResult.Scenarios, sc)
+
+			// Upsert the run_scenarios row before appending the event so the
+			// run_events FK constraint on (run_id, payload_scenario_id) is
+			// satisfied. This is required both in daemon mode (where the API
+			// service may not have pre-populated scenario rows) and in local
+			// CLI mode (where no service layer exists at all).
+			scenarioOrdinal++
+			if r.store != nil {
+				featName := feature.Name
+				if upsertErr := r.store.Run.UpsertRunScenario(ctx, runstore.UpsertRunScenarioParams{
+					RunID:         runID,
+					ScenarioID:    sc.DeterministicID,
+					Ordinal:       scenarioOrdinal,
+					Name:          sc.Name,
+					Status:        int64(reportsStatusToScenarioProto(sc.Status)),
+					DurationNanos: sc.Duration.Nanoseconds(),
+					FeatureName:   &featName,
+				}); upsertErr != nil {
+					log.FromContext(ctx).Warn("failed to persist scenario record",
+						zap.String("run_id", runID),
+						zap.String("scenario_id", sc.DeterministicID),
+						zap.Error(upsertErr))
+				}
+			}
 
 			scEvt := scenarioResultEvent(runID, seq(), sc)
 			r.appendEvent(ctx, runID, scEvt)
@@ -201,11 +234,15 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 done:
 	// AfterSuite hooks (best-effort; error does not override run result).
 	if r.hooks != nil {
-		_ = r.hooks.RunAfterSuite(ctx)
+		if afterSuiteErr := r.hooks.RunAfterSuite(ctx); afterSuiteErr != nil {
+			log.FromContext(ctx).Warn("AfterSuite hook error", zap.String("run_id", runID), zap.Error(afterSuiteErr))
+		}
 	}
 	// Adapter teardown after suite (best-effort).
 	if r.adapters != nil {
-		_ = r.adapters.TeardownAll(ctx)
+		if teardownErr := r.adapters.TeardownAll(ctx); teardownErr != nil {
+			log.FromContext(ctx).Warn("adapter teardown error", zap.String("run_id", runID), zap.Error(teardownErr))
+		}
 	}
 	runResult.Duration = time.Since(runResult.StartedAt)
 	runResult.Finalize()
@@ -230,9 +267,11 @@ done:
 	r.updateRunSummary(ctx, runID, runResult)
 
 	if r.orchestrator != nil && !cfg.KeepStack {
-		_, _ = r.orchestrator.TeardownStack(ctx, &stackv1.TeardownStackRequest{
+		if _, teardownErr := r.orchestrator.TeardownStack(ctx, &stackv1.TeardownStackRequest{
 			WorkspaceId: req.Selector.WorkspaceId,
-		})
+		}); teardownErr != nil {
+			log.FromContext(ctx).Warn("stack teardown error", zap.String("run_id", runID), zap.Error(teardownErr))
+		}
 	}
 	return nil
 }
@@ -277,11 +316,19 @@ func (r *Runner) RunAsync(ctx context.Context, req *runv1.RunAsyncRequest) (*run
 		}
 	}
 
+	// Open the in-process event bus before spawning so that StreamRunEvents can
+	// subscribe and receive all events including the first status update.
+	r.openBus(runID)
+
 	// Register a cancellable context so CancelRun can interrupt this goroutine.
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	r.cancelMu.Lock()
 	r.cancels[runID] = cancel
 	r.cancelMu.Unlock()
+
+	// Carry the logger from the request context into the background goroutine.
+	bgLogger := log.FromContext(ctx).With(zap.String("run_id", runID))
+	bgCtx := log.WithLogger(cancelCtx, bgLogger)
 
 	go func() {
 		defer func() {
@@ -289,8 +336,14 @@ func (r *Runner) RunAsync(ctx context.Context, req *runv1.RunAsyncRequest) (*run
 			delete(r.cancels, runID)
 			r.cancelMu.Unlock()
 			cancel()
+			r.closeBus(runID)
 		}()
-		r.executeAsync(runID, req, cancelCtx)
+		// Acquire semaphore slot (blocks if at capacity).
+		if r.sem != nil {
+			r.sem <- struct{}{}
+			defer func() { <-r.sem }()
+		}
+		r.executeAsync(runID, req, bgCtx)
 	}()
 
 	return &runv1.RunAsyncResponse{
@@ -303,8 +356,10 @@ func (r *Runner) RunAsync(ctx context.Context, req *runv1.RunAsyncRequest) (*run
 // ctx is a cancellable context; cancellation causes the run to stop after the
 // current scenario completes and the run is marked CANCELLED.
 func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx context.Context) {
+	logger := log.FromContext(ctx)
 	cfg, err := r.resolveRunConfig(ctx, req.Selector, req.Execution)
 	if err != nil {
+		logger.Error("failed to resolve run config", zap.Error(err))
 		r.updateRunStatus(ctx, runID, commonv1.RunStatus_RUN_STATUS_FAILED)
 		return
 	}
@@ -338,7 +393,11 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx cont
 	reg := r.registry
 	if reg == nil {
 		reg = steps.NewRegistry()
-		_ = builtin.Register(reg)
+		if regErr := builtin.Register(reg); regErr != nil {
+			logger.Error("failed to register builtin steps", zap.Error(regErr))
+			r.updateRunStatus(ctx, runID, commonv1.RunStatus_RUN_STATUS_FAILED)
+			return
+		}
 	}
 	if r.hooks == nil {
 		h := steps.NewHookRegistry()
@@ -354,14 +413,12 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx cont
 	suiteVars := mergeMaps(cfg.Variables, req.Variables)
 	reporter := reports.NewConsoleReporter(nil, false, false)
 
-	// Pre-compile optional scenario name regex.
-	var scenarioRegex *regexp.Regexp
-	if cfg.ScenarioRegex != "" {
-		scenarioRegex, _ = regexp.Compile(cfg.ScenarioRegex)
-	}
+	// scenarioRegex is pre-compiled in resolveRunConfig; use directly.
+	scenarioRegex := cfg.CompiledScenarioRegex
 
 	if r.hooks != nil {
 		if hookErr := r.hooks.RunBeforeSuite(ctx); hookErr != nil {
+			logger.Error("BeforeSuite hook failed", zap.Error(hookErr))
 			r.updateRunStatus(ctx, runID, commonv1.RunStatus_RUN_STATUS_FAILED)
 			return
 		}
@@ -412,7 +469,9 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx cont
 						sc.Err = hookErr
 					} else {
 						r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
-						_ = r.hooks.RunAfterScenario(scenCtx)
+						if afterErr := r.hooks.RunAfterScenario(scenCtx); afterErr != nil {
+							logger.Warn("AfterScenario hook error", zap.String("scenario", scenario.Name), zap.Error(afterErr))
+						}
 					}
 				} else {
 					r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
@@ -427,11 +486,15 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx cont
 
 asyncDone:
 	if r.hooks != nil {
-		_ = r.hooks.RunAfterSuite(ctx)
+		if afterSuiteErr := r.hooks.RunAfterSuite(ctx); afterSuiteErr != nil {
+			logger.Warn("AfterSuite hook error", zap.Error(afterSuiteErr))
+		}
 	}
 	// Adapter teardown after suite (best-effort).
 	if r.adapters != nil {
-		_ = r.adapters.TeardownAll(context.Background())
+		if teardownErr := r.adapters.TeardownAll(context.Background()); teardownErr != nil {
+			logger.Warn("adapter teardown error", zap.Error(teardownErr))
+		}
 	}
 	runResult.Duration = time.Since(runResult.StartedAt)
 	runResult.Finalize()
@@ -446,9 +509,11 @@ asyncDone:
 	r.updateRunSummary(context.Background(), runID, runResult)
 
 	if r.orchestrator != nil && !cfg.KeepStack {
-		_, _ = r.orchestrator.TeardownStack(context.Background(), &stackv1.TeardownStackRequest{
+		if _, teardownErr := r.orchestrator.TeardownStack(context.Background(), &stackv1.TeardownStackRequest{
 			WorkspaceId: req.Selector.WorkspaceId,
-		})
+		}); teardownErr != nil {
+			logger.Warn("stack teardown error", zap.Error(teardownErr))
+		}
 	}
 }
 
@@ -476,14 +541,6 @@ func (r *Runner) executeScenario(
 		return false
 	}
 
-	if feature.Background != nil {
-		for _, step := range feature.Background.Steps {
-			if runStep(step) {
-				sc.Duration = time.Since(start)
-				return
-			}
-		}
-	}
 	for _, step := range scenario.Steps {
 		if runStep(step) {
 			sc.Duration = time.Since(start)
@@ -524,7 +581,25 @@ func (r *Runner) executeStep(
 ) *reports.StepResult {
 	sr := &reports.StepResult{Keyword: step.Keyword, Text: step.Text}
 
-	stepDef, args, matchErr := reg.MatchStep(step)
+	// Expand ${VAR} references from suite and scenario variables before
+	// matching so steps like `I set the base URL to "${BASE_URL}"` resolve
+	// correctly without requiring each step handler to do its own expansion.
+	expandedStep := *step
+	expandedStep.Text = os.Expand(step.Text, func(key string) string {
+		// Check exact case first, then lowercase (Viper lowercases config keys).
+		lower := strings.ToLower(key)
+		for _, m := range []map[string]string{scenCtx.Variables, scenCtx.SuiteVars} {
+			if v, ok := m[key]; ok {
+				return v
+			}
+			if v, ok := m[lower]; ok {
+				return v
+			}
+		}
+		return "${" + key + "}"
+	})
+
+	stepDef, args, matchErr := reg.MatchStep(&expandedStep)
 	if matchErr != nil {
 		sr.Status = reports.StatusUndefined
 		sr.Err = matchErr
@@ -555,11 +630,17 @@ func (r *Runner) executeStep(
 
 // --- helpers ---
 
+// configResolveTimeout is the maximum time allowed for a ConfigProvider call.
+// A hung provider would otherwise block RunSync/RunAsync indefinitely.
+const configResolveTimeout = 10 * time.Second
+
 func (r *Runner) resolveRunConfig(ctx context.Context, sel *runv1.RunSelector, exec *configv1.ExecutionConfig) (*RunConfig, error) {
 	if sel == nil {
 		return nil, status.Error(codes.InvalidArgument, "selector is required")
 	}
-	cfg, err := r.configFn(ctx, sel.WorkspaceId, sel.ProfileName)
+	cfgCtx, cfgCancel := context.WithTimeout(ctx, configResolveTimeout)
+	defer cfgCancel()
+	cfg, err := r.configFn(cfgCtx, sel.WorkspaceId, sel.ProfileName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "resolve config: %v", err)
 	}
@@ -579,6 +660,15 @@ func (r *Runner) resolveRunConfig(ctx context.Context, sel *runv1.RunSelector, e
 		if exec.RunTimeout != nil {
 			cfg.RunTimeout = exec.RunTimeout.AsDuration()
 		}
+	}
+	// Pre-compile the scenario name regex once here so RunSync and executeAsync
+	// never recompile it on every invocation.
+	if cfg.ScenarioRegex != "" {
+		compiled, compileErr := regexp.Compile(cfg.ScenarioRegex)
+		if compileErr != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid scenario regex: %v", compileErr)
+		}
+		cfg.CompiledScenarioRegex = compiled
 	}
 	return cfg, nil
 }
@@ -612,26 +702,30 @@ func (r *Runner) updateRunStatus(ctx context.Context, runID string, s commonv1.R
 	if s == commonv1.RunStatus_RUN_STATUS_PASSED || s == commonv1.RunStatus_RUN_STATUS_FAILED || s == commonv1.RunStatus_RUN_STATUS_CANCELLED {
 		endedAt = &now
 	}
-	_ = r.store.Run.UpdateRunStatus(ctx, runstore.UpdateRunStatusParams{
+	if err := r.store.Run.UpdateRunStatus(ctx, runstore.UpdateRunStatusParams{
 		RunID:     runID,
 		Status:    int64(s),
 		StartedAt: startedAt,
 		EndedAt:   endedAt,
-	})
+	}); err != nil {
+		log.FromContext(ctx).Warn("failed to persist run status", zap.String("run_id", runID), zap.Stringer("status", s), zap.Error(err))
+	}
 }
 
 func (r *Runner) updateRunSummary(ctx context.Context, runID string, res *reports.RunResult) {
 	if r.store == nil {
 		return
 	}
-	_ = r.store.Run.UpdateRunSummary(ctx, runstore.UpdateRunSummaryParams{
+	if err := r.store.Run.UpdateRunSummary(ctx, runstore.UpdateRunSummaryParams{
 		RunID:                   runID,
 		SummaryTotalScenarios:   int64(res.Total),
 		SummaryPassedScenarios:  int64(res.Passed),
 		SummaryFailedScenarios:  int64(res.Failed),
 		SummarySkippedScenarios: int64(res.Skipped),
 		SummaryDurationNanos:    int64(res.Duration),
-	})
+	}); err != nil {
+		log.FromContext(ctx).Warn("failed to persist run summary", zap.String("run_id", runID), zap.Error(err))
+	}
 }
 
 func newSeq() func() uint64 {
@@ -698,7 +792,12 @@ func (r *Runner) appendEvent(ctx context.Context, runID string, evt *runv1.RunEv
 		p.PayloadSummarySkippedScenarios = &skipped
 		p.PayloadSummaryDurationNanos = &durNanos
 	}
-	_ = r.store.Run.AppendRunEvent(ctx, p)
+	if err := r.store.Run.AppendRunEvent(ctx, p); err != nil {
+		log.FromContext(ctx).Warn("failed to persist run event", zap.String("run_id", runID), zap.Error(err))
+	}
+	// Also publish to the in-process bus so live StreamRunEvents clients receive
+	// events without polling the database.
+	r.publishToBus(runID, evt)
 }
 
 func runStatusEvent(runID string, seq uint64, s commonv1.RunStatus, terminal bool) *runv1.RunEvent {

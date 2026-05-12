@@ -1,1 +1,24 @@
 project: lobster-self-tests
+
+workspace:
+  selected: lobster-self-tests
+
+features:
+  paths:
+    - features/*.feature
+
+runner:
+  tags: "~@docker ~@integration"
+
+compose:
+  files:
+    - ../config/docker-compose.yml
+    - docker-compose.test.yml
+
+variables:
+  LOBSTERD_ADDR: "localhost:29443"
+  LOBSTERD_HTTP_URL: "http://localhost:28080"
+
+persistence:
+  migrations:
+    dir: ../migrations

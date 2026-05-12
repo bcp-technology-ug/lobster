@@ -1,0 +1,34 @@
+# .dockerignore — keeps the build context lean.
+# The builder stage downloads dependencies via go mod download, so only source
+# files and the module manifest are needed. Everything else is excluded.
+
+# Local build outputs
+bin/
+*.test
+*.prof
+*.coverprofile
+coverage.out
+cover.out
+
+# Runtime / local project data — never bake credentials or local DB into the image
+.lobster/
+reports/
+*.log
+*.tmp
+*.swp
+*.swo
+.env
+.env.*
+
+# Git history
+.git/
+.gitignore
+
+# Documentation and test feature files (not needed at runtime)
+docs/
+tests/
+
+# Editor / IDE
+.idea/
+.vscode/
+*.code-workspace

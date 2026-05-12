@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -18,6 +19,14 @@ import (
 // an insecure connection is used.  authToken, if non-empty, is attached as
 // a Bearer token to every RPC via interceptors.
 func dialDaemon(_ context.Context, addr, authToken, caFile, certFile, keyFile string) (*grpc.ClientConn, error) {
+	// grpc-go v1.68+ uses the dns resolver by default for bare host:port
+	// addresses.  DNS resolution of localhost can produce zero addresses on
+	// some systems (macOS, Docker Desktop).  Use the passthrough resolver so
+	// the address is used verbatim.
+	if !strings.Contains(addr, "://") {
+		addr = "passthrough:///" + addr
+	}
+
 	var opts []grpc.DialOption
 
 	switch {

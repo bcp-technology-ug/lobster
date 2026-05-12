@@ -25,6 +25,10 @@ func registerServiceSteps(r *steps.Registry) error {
 			`I wait up to (\d+)s? for the service "([^"]+)" to be running`,
 			stepWaitForService,
 		},
+		{
+			`I wait up to (\d+)s? for URL "([^"]+)" to be reachable`,
+			stepWaitForURL,
+		},
 	}
 	for _, d := range defs {
 		if err := r.Register(d.pattern, d.handler, srcService); err != nil {
@@ -65,6 +69,26 @@ func stepWaitForService(ctx *steps.ScenarioContext, args ...string) error {
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("service %q did not become available within %ds", name, timeoutSecs)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+// stepWaitForURL polls the explicit URL until it responds with 2xx or the timeout expires.
+func stepWaitForURL(ctx *steps.ScenarioContext, args ...string) error {
+	var timeoutSecs int
+	if _, err := fmt.Sscanf(args[0], "%d", &timeoutSecs); err != nil {
+		return fmt.Errorf("invalid timeout %q", args[0])
+	}
+	url := args[1]
+
+	deadline := time.Now().Add(time.Duration(timeoutSecs) * time.Second)
+	for {
+		if err := checkServiceURL(ctx, url); err == nil {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("URL %q did not become reachable within %ds", url, timeoutSecs)
 		}
 		time.Sleep(500 * time.Millisecond)
 	}

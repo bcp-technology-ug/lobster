@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1
+# ─────────────────────────────────────────────────────────────────────────────
+# Build stage
+# CGO is required by mattn/go-sqlite3 which embeds the SQLite C library.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM golang:1.25-alpine AS builder
+
+RUN apk add --no-cache gcc musl-dev
+
+WORKDIR /src
+
+# Download dependencies separately so Docker can cache this layer.
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=1 GOOS=linux \
+    go build \
+      -trimpath \
+      -ldflags="-s -w" \
+      -o /bin/lobsterd \
+      ./cmd/lobsterd
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Runtime stage
+# ─────────────────────────────────────────────────────────────────────────────
+FROM alpine:3.21
+
+# ca-certificates: TLS to external services / JWKS endpoints.
+# tzdata: time-zone aware step scheduling.
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /bin/lobsterd /usr/local/bin/lobsterd
+
+# Bundle SQL migrations so the image is fully self-contained.
+# Migration mode defaults to "auto" so the daemon runs migrations on startup.
+COPY migrations/ /app/migrations/
+
+# gRPC listener / HTTP+JSON gateway.
+EXPOSE 9443 8080
+
+ENTRYPOINT ["lobsterd"]
+CMD ["start", \
+     "--listen",         ":9443", \
+     "--http-listen",    ":8080", \
+     "--migrations-dir", "/app/migrations"]

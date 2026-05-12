@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
 	adminv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/admin"
@@ -33,6 +35,9 @@ import (
 type Config struct {
 	// Auth controls JWKS token validation.
 	Auth middleware.AuthConfig
+	// Logger is the base structured logger injected into every RPC context.
+	// When nil, a no-op logger is used (no output, no panics).
+	Logger *zap.Logger
 	// Version is the daemon binary version string reported in health responses.
 	Version string
 	// WorkspaceID and ActiveProfile are surfaced in GetConfigSummary.
@@ -70,12 +75,27 @@ func Build(st *store.Store, cfg Config, svc Services) (*Server, error) {
 		return nil, err
 	}
 
+	logger := cfg.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
+	// Interceptor ordering is load-bearing:
+	//  1. Logging — injects a request-scoped logger into ctx first so that all
+	//     subsequent interceptors and handlers can emit correlated log entries.
+	//  2. Auth   — rejects unauthenticated requests before any business logic
+	//     runs. Must come before validation so we never leak validation details
+	//     to unauthenticated callers.
+	//  3. ProtoValidate — validates request fields. Runs after auth so invalid
+	//     requests from authenticated callers produce clear error messages.
 	grpcSrv := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			middleware.Logging(logger),
 			auth.UnaryInterceptor(),
 			middleware.ProtoValidate(),
 		),
 		grpc.ChainStreamInterceptor(
+			middleware.LoggingStream(logger),
 			auth.StreamInterceptor(),
 			middleware.ProtoValidateStream(),
 		),

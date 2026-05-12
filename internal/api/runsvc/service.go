@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/bcp-technology/lobster/internal/api/convert"
+	lobsterlog "github.com/bcp-technology/lobster/internal/log"
 	"github.com/bcp-technology/lobster/internal/store"
 
 	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
 	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
 	runstore "github.com/bcp-technology/lobster/gen/sqlc/run"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -28,6 +30,10 @@ type Runner interface {
 	RunAsync(ctx context.Context, req *runv1.RunAsyncRequest) (*runv1.RunAsyncResponse, error)
 	// Cancel signals the background goroutine for runID to stop. Idempotent.
 	Cancel(ctx context.Context, runID string) error
+	// SubscribeRunEvents returns the live event channel for a run that is still
+	// executing in this process. Returns (nil, false) when the run is not
+	// in-flight; callers fall back to DB replay in that case.
+	SubscribeRunEvents(runID string) (<-chan *runv1.RunEvent, bool)
 }
 
 // Service implements runv1.RunServiceServer backed by SQLite persistence.
@@ -97,13 +103,20 @@ func (s *Service) GetRun(ctx context.Context, req *runv1.GetRunRequest) (*runv1.
 	return &runv1.GetRunResponse{Run: run}, nil
 }
 
-// StreamRunEvents streams persisted run events from a given sequence onward.
-// This implementation polls the DB for new events; a future version will use
-// a pub/sub channel from the runner for low-latency live streaming.
+// StreamRunEvents streams run events from a given sequence onward.
+//
+// If the run is still executing in this process the implementation subscribes
+// to the runner's in-process event bus (zero-latency, no polling). DB replay
+// from fromSeq is used first to catch up on events already persisted before
+// the subscription was opened, then new events are read from the channel until
+// it is closed by the runner at the end of the run.
+//
+// If the run is not in-flight (already complete, or the daemon was restarted)
+// the implementation replays all persisted events from the DB directly.
 func (s *Service) StreamRunEvents(req *runv1.StreamRunEventsRequest, stream runv1.RunService_StreamRunEventsServer) error {
 	ctx := stream.Context()
+	logger := lobsterlog.FromContext(ctx).With(zap.String("run_id", req.RunId))
 	fromSeq := int64(req.FromSequence)
-	const pollInterval = 500 * time.Millisecond
 
 	// Verify run exists.
 	if _, err := s.store.Run.GetRun(ctx, req.RunId); err != nil {
@@ -113,49 +126,75 @@ func (s *Service) StreamRunEvents(req *runv1.StreamRunEventsRequest, stream runv
 		return status.Errorf(codes.Internal, "get run: %v", err)
 	}
 
+	// Attempt to subscribe to the live bus before replaying DB events. This
+	// ensures we receive all events even if new ones arrive between the DB
+	// query and the channel read.
+	var liveCh <-chan *runv1.RunEvent
+	if s.runner != nil {
+		liveCh, _ = s.runner.SubscribeRunEvents(req.RunId)
+	}
+
+	// Replay events already in DB (from fromSeq).
+	events, err := s.store.Run.ListRunEventsFromSequence(ctx, runstore.ListRunEventsFromSequenceParams{
+		RunID:        req.RunId,
+		FromSequence: fromSeq,
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "list events: %v", err)
+	}
+	for _, e := range events {
+		evt := convert.RunEventFromDB(e)
+		if err := stream.Send(evt); err != nil {
+			return err
+		}
+		fromSeq = e.Sequence + 1
+		if e.Terminal == 1 {
+			return nil
+		}
+	}
+
+	// If no live channel is available the run is already complete and we have
+	// replayed all persisted events above.
+	if liveCh == nil {
+		return nil
+	}
+
+	// Drain the live channel. Events with sequence < fromSeq were already sent
+	// via DB replay; skip them to avoid duplicates.
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		default:
-		}
-
-		events, err := s.store.Run.ListRunEventsFromSequence(ctx, runstore.ListRunEventsFromSequenceParams{
-			RunID:        req.RunId,
-			FromSequence: fromSeq,
-		})
-		if err != nil {
-			return status.Errorf(codes.Internal, "list events: %v", err)
-		}
-
-		for _, e := range events {
-			evt := convert.RunEventFromDB(e)
+		case evt, ok := <-liveCh:
+			if !ok {
+				// Channel closed: run finished. Drain any remaining DB events as
+				// a safety net for events that may have been persisted after our
+				// last DB replay but before the channel was drained.
+				tail, tailErr := s.store.Run.ListRunEventsFromSequence(ctx, runstore.ListRunEventsFromSequenceParams{
+					RunID:        req.RunId,
+					FromSequence: fromSeq,
+				})
+				if tailErr != nil {
+					logger.Warn("tail DB drain failed", zap.Error(tailErr))
+					return nil
+				}
+				for _, e := range tail {
+					if err := stream.Send(convert.RunEventFromDB(e)); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+			if int64(evt.Sequence) < fromSeq {
+				// Already sent via DB replay; skip.
+				continue
+			}
 			if err := stream.Send(evt); err != nil {
 				return err
 			}
-			fromSeq = e.Sequence + 1
-			if e.Terminal == 1 {
+			fromSeq = int64(evt.Sequence) + 1
+			if evt.Terminal {
 				return nil
-			}
-		}
-
-		// If we received no events and no terminal, wait before polling again.
-		if len(events) == 0 {
-			// Check if run is in a terminal state.
-			row, err := s.store.Run.GetRun(ctx, req.RunId)
-			if err == nil {
-				st := commonv1.RunStatus(row.Status)
-				switch st {
-				case commonv1.RunStatus_RUN_STATUS_PASSED,
-					commonv1.RunStatus_RUN_STATUS_FAILED,
-					commonv1.RunStatus_RUN_STATUS_CANCELLED:
-					return nil
-				}
-			}
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(pollInterval):
 			}
 		}
 	}
@@ -194,18 +233,24 @@ func (s *Service) CancelRun(ctx context.Context, req *runv1.CancelRunRequest) (*
 	// Append a cancellation event.
 	seq := time.Now().UnixNano()
 	statusVal := int64(commonv1.RunStatus_RUN_STATUS_CANCELLED)
-	_ = s.store.Run.AppendRunEvent(ctx, runstore.AppendRunEventParams{
+	if appendErr := s.store.Run.AppendRunEvent(ctx, runstore.AppendRunEventParams{
 		RunID:            req.RunId,
 		Sequence:         seq,
 		ObservedAt:       now,
 		EventType:        int64(runv1.RunEventType_RUN_EVENT_TYPE_RUN_STATUS),
 		Terminal:         1,
 		PayloadRunStatus: &statusVal,
-	})
+	}); appendErr != nil {
+		lobsterlog.FromContext(ctx).Warn("failed to append cancellation event",
+			zap.String("run_id", req.RunId), zap.Error(appendErr))
+	}
 
 	// Signal the background goroutine to stop (idempotent if already done).
 	if s.runner != nil {
-		_ = s.runner.Cancel(ctx, req.RunId)
+		if cancelErr := s.runner.Cancel(ctx, req.RunId); cancelErr != nil {
+			lobsterlog.FromContext(ctx).Warn("runner cancel signal failed",
+				zap.String("run_id", req.RunId), zap.Error(cancelErr))
+		}
 	}
 
 	return &runv1.CancelRunResponse{
@@ -228,14 +273,14 @@ func (s *Service) ListRuns(ctx context.Context, req *runv1.ListRunsRequest) (*ru
 		rows, err = s.store.Run.ListRunsPageByStatus(ctx, runstore.ListRunsPageByStatusParams{
 			WorkspaceID:     req.WorkspaceId,
 			Status:          int64(req.Status),
-			CursorCreatedAt: ptrStrToInterface(cursorCreatedAt),
+			CursorCreatedAt: convert.PtrStrToInterface(cursorCreatedAt),
 			CursorRunID:     cursorRunID,
 			PageSize:        pageSize,
 		})
 	} else {
 		rows, err = s.store.Run.ListRunsPage(ctx, runstore.ListRunsPageParams{
 			WorkspaceID:     req.WorkspaceId,
-			CursorCreatedAt: ptrStrToInterface(cursorCreatedAt),
+			CursorCreatedAt: convert.PtrStrToInterface(cursorCreatedAt),
 			CursorRunID:     cursorRunID,
 			PageSize:        pageSize,
 		})
@@ -286,14 +331,6 @@ func (s *Service) attachRunDetail(ctx context.Context, run *runv1.Run) error {
 		})
 	}
 	return nil
-}
-
-// ptrStrToInterface converts *string to interface{} suitable for sqlc nullable cursors.
-func ptrStrToInterface(s *string) interface{} {
-	if s == nil {
-		return nil
-	}
-	return *s
 }
 
 // timestampPBToDBPtr formats a *timestamppb.Timestamp to *string for DB storage.

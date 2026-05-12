@@ -52,3 +52,14 @@ func PageSizeOrDefault(size uint32) int64 {
 	}
 	return int64(size)
 }
+
+// PtrStrToInterface converts *string to interface{} for sqlc nullable cursor
+// parameters. sqlc generates interface{} for nullable TEXT columns that accept
+// NULL for "no cursor" (first page). This helper centralises the conversion
+// used by every service that performs cursor-based pagination.
+func PtrStrToInterface(s *string) interface{} {
+	if s == nil {
+		return nil
+	}
+	return *s
+}

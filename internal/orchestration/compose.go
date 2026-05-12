@@ -9,6 +9,21 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// expandComposeVars expands ${VAR} and ${VAR:-default} references in compose
+// file content using os.Getenv, with bash-style default values.
+func expandComposeVars(s string) string {
+	return os.Expand(s, func(key string) string {
+		if idx := strings.Index(key, ":-"); idx >= 0 {
+			name, def := key[:idx], key[idx+2:]
+			if v := os.Getenv(name); v != "" {
+				return v
+			}
+			return def
+		}
+		return os.Getenv(key)
+	})
+}
+
 // composeSpec is the minimal Compose file subset needed for container lifecycle
 // management in v0.1. Only fields used by the orchestrator are unmarshalled.
 type composeSpec struct {
@@ -71,7 +86,7 @@ func parseComposeFiles(paths []string) (map[string]*resolvedService, error) {
 			return nil, fmt.Errorf("read compose file %q: %w", p, err)
 		}
 		var spec composeSpec
-		if err := yaml.Unmarshal(data, &spec); err != nil {
+		if err := yaml.Unmarshal([]byte(expandComposeVars(string(data))), &spec); err != nil {
 			return nil, fmt.Errorf("parse compose file %q: %w", p, err)
 		}
 		for name, svc := range spec.Services {
@@ -112,7 +127,7 @@ func mergeServiceDef(dst, src *composeSvcDef) {
 		dst.Restart = src.Restart
 	}
 	if len(src.Ports) > 0 {
-		dst.Ports = append(dst.Ports, src.Ports...)
+		dst.Ports = src.Ports // later file replaces, per compose override semantics
 	}
 	if src.DependsOn != nil {
 		dst.DependsOn = src.DependsOn
