@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	workspaceDBRoot = ".lobster/workspaces"
-	workspaceDBName = "lobster.db"
+	workspaceDBRoot      = ".lobster/workspaces"
+	workspaceDBName      = "lobster.db"
+	defaultSQLitePath    = ".lobster/lobster.db"
+	defaultMigrationsDir = "migrations"
 )
 
 // StoreLoadOptionsFromInput maps profile fields to store load options.
@@ -34,7 +36,15 @@ func StoreLoadOptionsFromInput(input StoreAdapterInput) (store.LoadOptions, erro
 		if err != nil {
 			return store.LoadOptions{}, err
 		}
-		opts.SQLitePath = workspacePath
+		if workspacePath != "" {
+			opts.SQLitePath = workspacePath
+		} else {
+			opts.SQLitePath = defaultSQLitePath
+		}
+	}
+
+	if opts.MigrationsDir == "" {
+		opts.MigrationsDir = defaultMigrationsDir
 	}
 
 	return opts, nil

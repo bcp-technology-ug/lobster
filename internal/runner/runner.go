@@ -7,9 +7,11 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"sync"
 	"time"
 
 	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
+	"github.com/bcp-technology/lobster/internal/integrations"
 	"github.com/bcp-technology/lobster/internal/reports"
 	"github.com/bcp-technology/lobster/internal/steps"
 	"github.com/bcp-technology/lobster/internal/store"
@@ -70,8 +72,12 @@ type Runner struct {
 	orchestrator Orchestrator // may be nil; stack lifecycle is skipped when nil
 	registry     *steps.Registry
 	store        *store.Store
-	hooks        *steps.HookRegistry // may be nil; hooks are skipped when nil
-	reporter     reports.Reporter    // may be nil; falls back to ConsoleReporter when nil
+	hooks        *steps.HookRegistry    // may be nil; hooks are skipped when nil
+	reporter     reports.Reporter       // may be nil; falls back to ConsoleReporter when nil
+	adapters     *integrations.Registry // may be nil; adapter lifecycle skipped when nil
+
+	cancelMu sync.Mutex
+	cancels  map[string]context.CancelFunc
 }
 
 // New creates a Runner. orchestrator may be nil.
@@ -81,6 +87,7 @@ func New(cfgFn ConfigProvider, orch Orchestrator, reg *steps.Registry, st *store
 		orchestrator: orch,
 		registry:     reg,
 		store:        st,
+		cancels:      make(map[string]context.CancelFunc),
 	}
 }
 
@@ -97,6 +104,28 @@ func (r *Runner) WithHooks(h *steps.HookRegistry) *Runner {
 func (r *Runner) WithReporter(rep reports.Reporter) *Runner {
 	r.reporter = rep
 	return r
+}
+
+// WithAdapterRegistry attaches an integration adapter registry to the Runner.
+// SetupAll is called before each suite, ResetAll before each scenario, and
+// TeardownAll after the suite. Call before first use.
+func (r *Runner) WithAdapterRegistry(reg *integrations.Registry) *Runner {
+	r.adapters = reg
+	return r
+}
+
+// Cancel signals the background goroutine for runID to stop. It is idempotent.
+func (r *Runner) Cancel(_ context.Context, runID string) error {
+	r.cancelMu.Lock()
+	cancel, ok := r.cancels[runID]
+	if ok {
+		delete(r.cancels, runID)
+	}
+	r.cancelMu.Unlock()
+	if ok {
+		cancel()
+	}
+	return nil
 }
 
 // Planner implements the plansvc.Planner interface.

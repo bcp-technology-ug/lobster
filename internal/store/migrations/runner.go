@@ -51,7 +51,10 @@ func Ensure(db *sql.DB, migrationsDir string, mode Mode) error {
 	if err != nil {
 		return fmt.Errorf("create migrator: %w", err)
 	}
-	defer func() { _, _ = m.Close() }()
+	// Note: m.Close() is intentionally not called here because it would also
+	// close the underlying *sql.DB (via the sqlite3 driver), invalidating the
+	// caller's connection pool. The source file handles are small and will be
+	// reclaimed on process exit or GC.
 
 	switch mode {
 	case ModeAuto:

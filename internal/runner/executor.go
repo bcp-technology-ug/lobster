@@ -22,12 +22,52 @@ import (
 )
 
 // RunSync parses features, executes matching scenarios serially, and streams
-// RunEvent messages to the caller for real-time progress.
+// RunEvent messages to the caller for real-time progress. It also persists
+// the run record and events to the store when a store is configured, enabling
+// GetRun / StreamRunEvents replay for sync runs.
 func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream runv1.RunService_RunSyncServer) error {
 	runID := newUUID()
 	seq := newSeq()
+	now := time.Now().UTC()
+	nowStr := now.Format(time.RFC3339Nano)
 
-	if err := stream.Send(runStatusEvent(runID, seq(), commonv1.RunStatus_RUN_STATUS_RUNNING, false)); err != nil {
+	// Persist run record so it is visible via GetRun / ListRuns immediately.
+	if r.store != nil {
+		var fpPtr, tagPtr, profPtr *string
+		if req.Selector.FeaturePath != "" {
+			s := req.Selector.FeaturePath
+			fpPtr = &s
+		}
+		if req.Selector.TagExpression != "" {
+			s := req.Selector.TagExpression
+			tagPtr = &s
+		}
+		if req.Selector.ProfileName != "" {
+			s := req.Selector.ProfileName
+			profPtr = &s
+		}
+		if createErr := r.store.Run.CreateRun(ctx, runstore.CreateRunParams{
+			RunID:                 runID,
+			WorkspaceID:           req.Selector.WorkspaceId,
+			ProfileName:           req.Selector.ProfileName,
+			Status:                int64(commonv1.RunStatus_RUN_STATUS_RUNNING),
+			SelectorFeaturePath:   fpPtr,
+			SelectorTagExpression: tagPtr,
+			SelectorProfileName:   profPtr,
+			CreatedAt:             nowStr,
+		}); createErr != nil {
+			return status.Errorf(codes.Internal, "create run record: %v", createErr)
+		}
+		_ = r.store.Run.UpdateRunStatus(ctx, runstore.UpdateRunStatusParams{
+			RunID:     runID,
+			Status:    int64(commonv1.RunStatus_RUN_STATUS_RUNNING),
+			StartedAt: &nowStr,
+		})
+	}
+
+	initialEvt := runStatusEvent(runID, seq(), commonv1.RunStatus_RUN_STATUS_RUNNING, false)
+	r.appendEvent(ctx, runID, initialEvt)
+	if err := stream.Send(initialEvt); err != nil {
 		return err
 	}
 
@@ -43,6 +83,13 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 			WaitForReadiness: true,
 		}); stackErr != nil {
 			return status.Errorf(codes.Internal, "ensure stack: %v", stackErr)
+		}
+	}
+
+	// Adapter setup runs once before the suite.
+	if r.adapters != nil {
+		if setupErr := r.adapters.SetupAll(ctx); setupErr != nil {
+			return status.Errorf(codes.Internal, "adapter setup: %v", setupErr)
 		}
 	}
 
@@ -115,21 +162,34 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 			reporter.ScenarioStarted(sc)
 			scenCtx := steps.NewScenarioContext(cfg.BaseURL, cfg.DefaultHeaders, suiteVars)
 			scenCtx.SoftAssertMode = cfg.SoftAssert
-			if r.hooks != nil {
-				if hookErr := r.hooks.RunBeforeScenario(scenCtx); hookErr != nil {
+
+			// Adapter reset runs before each scenario for clean state.
+			if r.adapters != nil {
+				if resetErr := r.adapters.ResetAll(ctx); resetErr != nil {
 					sc.Status = reports.StatusFailed
-					sc.Err = hookErr
+					sc.Err = resetErr
+				}
+			}
+
+			if sc.Status != reports.StatusFailed {
+				if r.hooks != nil {
+					if hookErr := r.hooks.RunBeforeScenario(scenCtx); hookErr != nil {
+						sc.Status = reports.StatusFailed
+						sc.Err = hookErr
+					} else {
+						r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
+						_ = r.hooks.RunAfterScenario(scenCtx)
+					}
 				} else {
 					r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
-					_ = r.hooks.RunAfterScenario(scenCtx)
 				}
-			} else {
-				r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
 			}
 			reporter.ScenarioFinished(sc)
 			runResult.Scenarios = append(runResult.Scenarios, sc)
 
-			if err := stream.Send(scenarioResultEvent(runID, seq(), sc)); err != nil {
+			scEvt := scenarioResultEvent(runID, seq(), sc)
+			r.appendEvent(ctx, runID, scEvt)
+			if err := stream.Send(scEvt); err != nil {
 				return err
 			}
 			if cfg.FailFast && sc.Status == reports.StatusFailed {
@@ -143,20 +203,31 @@ done:
 	if r.hooks != nil {
 		_ = r.hooks.RunAfterSuite(ctx)
 	}
+	// Adapter teardown after suite (best-effort).
+	if r.adapters != nil {
+		_ = r.adapters.TeardownAll(ctx)
+	}
 	runResult.Duration = time.Since(runResult.StartedAt)
 	runResult.Finalize()
 	reporter.RunFinished(runResult)
 
-	if err := stream.Send(summaryEvent(runID, seq(), runResult)); err != nil {
+	sumEvt := summaryEvent(runID, seq(), runResult)
+	r.appendEvent(ctx, runID, sumEvt)
+	if err := stream.Send(sumEvt); err != nil {
 		return err
 	}
 	termStatus := commonv1.RunStatus_RUN_STATUS_PASSED
 	if runResult.Status == reports.StatusFailed {
 		termStatus = commonv1.RunStatus_RUN_STATUS_FAILED
 	}
-	if err := stream.Send(runStatusEvent(runID, seq(), termStatus, true)); err != nil {
+	termEvt := runStatusEvent(runID, seq(), termStatus, true)
+	r.appendEvent(ctx, runID, termEvt)
+	if err := stream.Send(termEvt); err != nil {
 		return err
 	}
+
+	r.updateRunStatus(ctx, runID, termStatus)
+	r.updateRunSummary(ctx, runID, runResult)
 
 	if r.orchestrator != nil && !cfg.KeepStack {
 		_, _ = r.orchestrator.TeardownStack(ctx, &stackv1.TeardownStackRequest{
@@ -206,7 +277,21 @@ func (r *Runner) RunAsync(ctx context.Context, req *runv1.RunAsyncRequest) (*run
 		}
 	}
 
-	go r.executeAsync(runID, req)
+	// Register a cancellable context so CancelRun can interrupt this goroutine.
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	r.cancelMu.Lock()
+	r.cancels[runID] = cancel
+	r.cancelMu.Unlock()
+
+	go func() {
+		defer func() {
+			r.cancelMu.Lock()
+			delete(r.cancels, runID)
+			r.cancelMu.Unlock()
+			cancel()
+		}()
+		r.executeAsync(runID, req, cancelCtx)
+	}()
 
 	return &runv1.RunAsyncResponse{
 		RunId:      runID,
@@ -215,9 +300,9 @@ func (r *Runner) RunAsync(ctx context.Context, req *runv1.RunAsyncRequest) (*run
 }
 
 // executeAsync runs scenarios in a background goroutine and persists outcome.
-func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest) {
-	ctx := context.Background()
-
+// ctx is a cancellable context; cancellation causes the run to stop after the
+// current scenario completes and the run is marked CANCELLED.
+func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx context.Context) {
 	cfg, err := r.resolveRunConfig(ctx, req.Selector, req.Execution)
 	if err != nil {
 		r.updateRunStatus(ctx, runID, commonv1.RunStatus_RUN_STATUS_FAILED)
@@ -231,6 +316,14 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest) {
 			ProfileName:      req.Selector.ProfileName,
 			WaitForReadiness: true,
 		}); sErr != nil {
+			r.updateRunStatus(ctx, runID, commonv1.RunStatus_RUN_STATUS_FAILED)
+			return
+		}
+	}
+
+	// Adapter setup runs once before the suite.
+	if r.adapters != nil {
+		if setupErr := r.adapters.SetupAll(ctx); setupErr != nil {
 			r.updateRunStatus(ctx, runID, commonv1.RunStatus_RUN_STATUS_FAILED)
 			return
 		}
@@ -274,8 +367,17 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest) {
 		}
 	}
 
+	cancelled := false
 	for _, feature := range features {
+		if cancelled {
+			break
+		}
 		for _, scenario := range feature.Scenarios {
+			// Check if the run has been cancelled between scenarios.
+			if ctx.Err() != nil {
+				cancelled = true
+				break
+			}
 			if req.Selector.TagExpression != "" && !matchesTagExpression(scenario.Tags, req.Selector.TagExpression) {
 				continue
 			}
@@ -294,16 +396,27 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest) {
 			}
 			scenCtx := steps.NewScenarioContext(cfg.BaseURL, cfg.DefaultHeaders, suiteVars)
 			scenCtx.SoftAssertMode = cfg.SoftAssert
-			if r.hooks != nil {
-				if hookErr := r.hooks.RunBeforeScenario(scenCtx); hookErr != nil {
+
+			// Adapter reset before each scenario for clean state.
+			if r.adapters != nil {
+				if resetErr := r.adapters.ResetAll(ctx); resetErr != nil {
 					sc.Status = reports.StatusFailed
-					sc.Err = hookErr
+					sc.Err = resetErr
+				}
+			}
+
+			if sc.Status != reports.StatusFailed {
+				if r.hooks != nil {
+					if hookErr := r.hooks.RunBeforeScenario(scenCtx); hookErr != nil {
+						sc.Status = reports.StatusFailed
+						sc.Err = hookErr
+					} else {
+						r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
+						_ = r.hooks.RunAfterScenario(scenCtx)
+					}
 				} else {
 					r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
-					_ = r.hooks.RunAfterScenario(scenCtx)
 				}
-			} else {
-				r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
 			}
 			runResult.Scenarios = append(runResult.Scenarios, sc)
 			if cfg.FailFast && sc.Status == reports.StatusFailed {
@@ -316,18 +429,24 @@ asyncDone:
 	if r.hooks != nil {
 		_ = r.hooks.RunAfterSuite(ctx)
 	}
+	// Adapter teardown after suite (best-effort).
+	if r.adapters != nil {
+		_ = r.adapters.TeardownAll(context.Background())
+	}
 	runResult.Duration = time.Since(runResult.StartedAt)
 	runResult.Finalize()
 
 	finalStatus := commonv1.RunStatus_RUN_STATUS_PASSED
-	if runResult.Status == reports.StatusFailed {
+	if cancelled {
+		finalStatus = commonv1.RunStatus_RUN_STATUS_CANCELLED
+	} else if runResult.Status == reports.StatusFailed {
 		finalStatus = commonv1.RunStatus_RUN_STATUS_FAILED
 	}
-	r.updateRunStatus(ctx, runID, finalStatus)
-	r.updateRunSummary(ctx, runID, runResult)
+	r.updateRunStatus(context.Background(), runID, finalStatus)
+	r.updateRunSummary(context.Background(), runID, runResult)
 
 	if r.orchestrator != nil && !cfg.KeepStack {
-		_, _ = r.orchestrator.TeardownStack(ctx, &stackv1.TeardownStackRequest{
+		_, _ = r.orchestrator.TeardownStack(context.Background(), &stackv1.TeardownStackRequest{
 			WorkspaceId: req.Selector.WorkspaceId,
 		})
 	}
@@ -541,6 +660,46 @@ func containsString(slice []string, s string) bool {
 }
 
 // --- RunEvent constructors ---
+
+// appendEvent persists a RunEvent to the store when a store is configured.
+// It silently no-ops when the store is nil.
+func (r *Runner) appendEvent(ctx context.Context, runID string, evt *runv1.RunEvent) {
+	if r.store == nil {
+		return
+	}
+	p := runstore.AppendRunEventParams{
+		RunID:      runID,
+		Sequence:   int64(evt.Sequence),
+		ObservedAt: evt.ObservedAt.AsTime().UTC().Format(time.RFC3339Nano),
+		EventType:  int64(evt.EventType),
+	}
+	if evt.Terminal {
+		p.Terminal = 1
+	}
+	switch pay := evt.Payload.(type) {
+	case *runv1.RunEvent_RunStatus:
+		v := int64(pay.RunStatus)
+		p.PayloadRunStatus = &v
+	case *runv1.RunEvent_ScenarioResult:
+		id := pay.ScenarioResult.GetScenarioId()
+		p.PayloadScenarioID = &id
+	case *runv1.RunEvent_Summary:
+		total := int64(pay.Summary.TotalScenarios)
+		passed := int64(pay.Summary.PassedScenarios)
+		failed := int64(pay.Summary.FailedScenarios)
+		skipped := int64(pay.Summary.SkippedScenarios)
+		durNanos := int64(0)
+		if pay.Summary.Duration != nil {
+			durNanos = pay.Summary.Duration.AsDuration().Nanoseconds()
+		}
+		p.PayloadSummaryTotalScenarios = &total
+		p.PayloadSummaryPassedScenarios = &passed
+		p.PayloadSummaryFailedScenarios = &failed
+		p.PayloadSummarySkippedScenarios = &skipped
+		p.PayloadSummaryDurationNanos = &durNanos
+	}
+	_ = r.store.Run.AppendRunEvent(ctx, p)
+}
 
 func runStatusEvent(runID string, seq uint64, s commonv1.RunStatus, terminal bool) *runv1.RunEvent {
 	return &runv1.RunEvent{

@@ -21,12 +21,13 @@ import (
 )
 
 // Runner is the interface the RunService delegates actual execution to.
-// Batch 2 (runner package) will provide the production implementation.
 type Runner interface {
 	// RunSync executes a run and streams events until completion.
 	RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream runv1.RunService_RunSyncServer) error
 	// RunAsync creates a persisted run record and starts execution in the background.
 	RunAsync(ctx context.Context, req *runv1.RunAsyncRequest) (*runv1.RunAsyncResponse, error)
+	// Cancel signals the background goroutine for runID to stop. Idempotent.
+	Cancel(ctx context.Context, runID string) error
 }
 
 // Service implements runv1.RunServiceServer backed by SQLite persistence.
@@ -201,6 +202,11 @@ func (s *Service) CancelRun(ctx context.Context, req *runv1.CancelRunRequest) (*
 		Terminal:         1,
 		PayloadRunStatus: &statusVal,
 	})
+
+	// Signal the background goroutine to stop (idempotent if already done).
+	if s.runner != nil {
+		_ = s.runner.Cancel(ctx, req.RunId)
+	}
 
 	return &runv1.CancelRunResponse{
 		RunId:          req.RunId,

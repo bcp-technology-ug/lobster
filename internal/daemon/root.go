@@ -154,6 +154,7 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 					return fmt.Errorf("register keycloak adapter: %w", regErr)
 				}
 			}
+			runnerImpl = runnerImpl.WithAdapterRegistry(intReg)
 
 			// Build the gRPC server and all service implementations.
 			cfgSummaryFn := func() *adminv1.ConfigSummary {
