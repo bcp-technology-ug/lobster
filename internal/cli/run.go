@@ -12,12 +12,15 @@ import (
 	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
 	configv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/config"
 	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology/lobster/internal/integrations"
+	"github.com/bcp-technology/lobster/internal/integrations/keycloak"
 	"github.com/bcp-technology/lobster/internal/orchestration"
 	"github.com/bcp-technology/lobster/internal/reports"
 	"github.com/bcp-technology/lobster/internal/runner"
 	"github.com/bcp-technology/lobster/internal/steps"
 	"github.com/bcp-technology/lobster/internal/steps/builtin"
 	"github.com/bcp-technology/lobster/internal/store"
+	"github.com/bcp-technology/lobster/internal/telemetry"
 	"github.com/bcp-technology/lobster/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -62,6 +65,7 @@ func newRunCommand(v *viper.Viper) *cobra.Command {
 	// Output / verbosity.
 	cmd.Flags().Bool("ci", false, "force non-interactive CI output (plain text)")
 	cmd.Flags().CountVarP(&verbosity, "verbose", "v", "increase output verbosity: -v info, -vv debug, -vvv trace")
+	cmd.Flags().Bool("report-verbose", false, "include step-level detail in console and CI output (mirrors reports.verbose in config)")
 	cmd.Flags().String("report-json", "", "write JSON report to path")
 	cmd.Flags().String("report-junit", "", "write JUnit XML report to path")
 
@@ -75,6 +79,10 @@ func newRunCommand(v *viper.Viper) *cobra.Command {
 	cmd.PersistentFlags().String("tls-ca-file", "", "CA certificate file for daemon TLS")
 	cmd.PersistentFlags().String("tls-cert-file", "", "client certificate file for daemon mTLS")
 	cmd.PersistentFlags().String("tls-key-file", "", "client key file for daemon mTLS")
+
+	// Observability.
+	cmd.Flags().String("otel-endpoint", "", "OpenTelemetry collector endpoint (e.g. http://localhost:4318)")
+	cmd.Flags().String("otel-service-name", "lobster", "service name for OTel traces")
 
 	// Persistence.
 	addPersistenceFlags(cmd.Flags())
@@ -182,9 +190,13 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 		defer cancel()
 	}
 
-	// ── report paths ────────────────────────────────────────────────────────
+	// ── report paths & verbosity ────────────────────────────────────────────
 	reportJSON, _ := cmd.Flags().GetString("report-json")
 	reportJUnit, _ := cmd.Flags().GetString("report-junit")
+	reportVerbose, _ := cmd.Flags().GetBool("report-verbose")
+	if !cmd.Flags().Changed("report-verbose") && v.IsSet("reports.verbose") {
+		reportVerbose = v.GetBool("reports.verbose")
+	}
 
 	// ── run request ─────────────────────────────────────────────────────────
 	workspaceID := v.GetString("workspace.selected")
@@ -247,6 +259,28 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 
 	// ── local execution path ─────────────────────────────────────────────
 
+	// OTel: initialise tracing when an endpoint is configured.
+	otelEndpoint, _ := cmd.Flags().GetString("otel-endpoint")
+	if otelEndpoint == "" {
+		otelEndpoint = v.GetString("telemetry.otel.endpoint")
+	}
+	otelServiceName, _ := cmd.Flags().GetString("otel-service-name")
+	if otelServiceName == "" || otelServiceName == "lobster" {
+		if s := v.GetString("telemetry.otel.service_name"); s != "" {
+			otelServiceName = s
+		}
+	}
+	tprov, otelErr := telemetry.Setup(ctx, telemetry.Config{
+		Endpoint:    otelEndpoint,
+		ServiceName: otelServiceName,
+	})
+	if otelErr != nil {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("OpenTelemetry setup failed",
+			otelErr.Error(), "Check --otel-endpoint and ensure the collector is reachable.", ""))
+		return &ExitError{Code: ExitRuntimeError}
+	}
+	defer func() { _ = tprov.Shutdown(context.Background()) }()
+
 	// Config provider merges viper config, then applies --env overrides.
 	baseURL := v.GetString("http.base_url")
 	configVariables := v.GetStringMapString("variables")
@@ -259,15 +293,18 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 			vars[k] = val
 		}
 		return &runner.RunConfig{
-			BaseURL:       baseURL,
-			FeaturePaths:  featuresCfg,
-			Variables:     vars,
-			FailFast:      failFast,
-			SoftAssert:    softAssert,
-			KeepStack:     keepStack,
-			StepTimeout:   stepTimeout,
-			ScenarioRegex: scenarioRegex,
-			ScenarioIDs:   planScenarioIDs,
+			BaseURL:            baseURL,
+			FeaturePaths:       featuresCfg,
+			Variables:          vars,
+			FailFast:           failFast,
+			SoftAssert:         softAssert,
+			KeepStack:          keepStack,
+			StepTimeout:        stepTimeout,
+			ScenarioRegex:      scenarioRegex,
+			ScenarioIDs:        planScenarioIDs,
+			QuarantineEnabled:  v.GetBool("quarantine.enabled"),
+			QuarantineTag:      v.GetString("quarantine.tag"),
+			QuarantineBlocking: v.GetBool("quarantine.blocking_in_main_ci"),
 		}, nil
 	}
 
@@ -326,6 +363,38 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	builtin.RegisterHooks(hooks)
 	r = r.WithHooks(hooks)
 
+	// Apply retention config from persistence settings.
+	retentionCfg := store.RetentionConfig{
+		MaxRuns: int64(v.GetInt("persistence.retention.max_runs")),
+		MaxAge:  v.GetDuration("persistence.retention.max_age"),
+	}
+	if retentionCfg.MaxRuns > 0 || retentionCfg.MaxAge > 0 {
+		r = r.WithRetention(retentionCfg)
+	}
+
+	// Integrations (optional; keycloak is the only supported adapter in v0.1).
+	intReg := integrations.NewRegistry()
+	if v.GetBool("integrations.keycloak.enabled") {
+		adminPassword := os.Getenv(v.GetString("integrations.keycloak.admin_password_env"))
+		kcAdapter := keycloak.New("keycloak-primary", keycloak.Config{
+			BaseURL:       v.GetString("integrations.keycloak.base_url"),
+			AdminUser:     v.GetString("integrations.keycloak.admin_user"),
+			AdminPassword: adminPassword,
+			Realm:         v.GetString("integrations.keycloak.realm"),
+		})
+		if regErr := intReg.Register(kcAdapter); regErr != nil {
+			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Internal error",
+				fmt.Sprintf("register keycloak adapter: %v", regErr), "", ""))
+			return &ExitError{Code: ExitRuntimeError}
+		}
+		if regErr := kcAdapter.RegisterSteps(reg); regErr != nil {
+			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Internal error",
+				fmt.Sprintf("register keycloak steps: %v", regErr), "", ""))
+			return &ExitError{Code: ExitRuntimeError}
+		}
+	}
+	r = r.WithAdapterRegistry(intReg)
+
 	// Side-car reporters (JSON, JUnit) + capture reporter for undefined steps.
 	var extraReporters []reports.Reporter
 	if reportJSON != "" {
@@ -343,7 +412,7 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	if interactive {
 		runErr = runWithTUI(ctx, r, req, extraReporters, verbosity, cmd)
 	} else {
-		runErr = runWithConsole(ctx, r, req, extraReporters, verbosity, cmd)
+		runErr = runWithConsole(ctx, r, req, extraReporters, verbosity, reportVerbose, cmd)
 	}
 
 	// Print undefined steps summary.
@@ -415,9 +484,10 @@ func runWithConsole(
 	req *runv1.RunSyncRequest,
 	extra []reports.Reporter,
 	verbosity int,
+	reportVerbose bool,
 	cmd *cobra.Command,
 ) error {
-	consoleReporter := reports.NewConsoleReporter(cmd.OutOrStdout(), verbosity >= 1, true)
+	consoleReporter := reports.NewConsoleReporter(cmd.OutOrStdout(), verbosity >= 1 || reportVerbose, true)
 
 	allReporters := []reports.Reporter{consoleReporter}
 	allReporters = append(allReporters, extra...)

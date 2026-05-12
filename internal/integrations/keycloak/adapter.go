@@ -146,6 +146,208 @@ func (a *Adapter) GetUserToken(ctx context.Context, username, password, clientID
 	return result.AccessToken, nil
 }
 
+// GetUserTokenForRealm obtains a user token for an arbitrary realm using the
+// password grant flow. clientID defaults to "account" when empty.
+func (a *Adapter) GetUserTokenForRealm(ctx context.Context, realm, username, password, clientID string) (string, error) {
+	if clientID == "" {
+		clientID = "account"
+	}
+	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
+		strings.TrimRight(a.cfg.BaseURL, "/"), url.PathEscape(realm))
+
+	form := url.Values{}
+	form.Set("grant_type", "password")
+	form.Set("client_id", clientID)
+	form.Set("username", username)
+	form.Set("password", password)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("get user token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("get user token: HTTP %d: %s", resp.StatusCode, body)
+	}
+
+	var result struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode token response: %w", err)
+	}
+	return result.AccessToken, nil
+}
+
+// EnsureRealmExists ensures the named realm exists, creating it when absent.
+func (a *Adapter) EnsureRealmExists(ctx context.Context, realmName string) error {
+	token, err := a.GetToken(ctx)
+	if err != nil {
+		return err
+	}
+	realmURL := fmt.Sprintf("%s/admin/realms/%s",
+		strings.TrimRight(a.cfg.BaseURL, "/"), url.PathEscape(realmName))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, realmURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("check realm %q: %w", realmName, err)
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck
+
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("check realm %q: HTTP %d", realmName, resp.StatusCode)
+	}
+
+	// Create realm.
+	payload := map[string]interface{}{"realm": realmName, "enabled": true}
+	body, _ := json.Marshal(payload)
+	createReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("%s/admin/realms", strings.TrimRight(a.cfg.BaseURL, "/")),
+		bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	createReq.Header.Set("Authorization", "Bearer "+token)
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := a.client.Do(createReq)
+	if err != nil {
+		return fmt.Errorf("create realm %q: %w", realmName, err)
+	}
+	defer createResp.Body.Close()
+	io.Copy(io.Discard, createResp.Body) //nolint:errcheck
+
+	if createResp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("create realm %q: HTTP %d", realmName, createResp.StatusCode)
+	}
+	return nil
+}
+
+// EnsureUserInRealm creates a user in the specified realm when absent and
+// sets their password. The user's ID is returned. If the user already exists
+// only the ID is returned without modifying the existing record.
+func (a *Adapter) EnsureUserInRealm(ctx context.Context, realmName, username, password string) (string, error) {
+	token, err := a.GetToken(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	// Check whether the user already exists.
+	searchURL := fmt.Sprintf("%s/admin/realms/%s/users?username=%s&exact=true",
+		strings.TrimRight(a.cfg.BaseURL, "/"), url.PathEscape(realmName), url.QueryEscape(username))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("search user %q: %w", username, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("search user %q: HTTP %d: %s", username, resp.StatusCode, body)
+	}
+
+	var users []struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		return "", fmt.Errorf("decode users: %w", err)
+	}
+	if len(users) > 0 {
+		return users[0].ID, nil
+	}
+
+	// Create user.
+	userPayload := map[string]interface{}{
+		"username": username,
+		"enabled":  true,
+	}
+	userBody, _ := json.Marshal(userPayload)
+	createURL := fmt.Sprintf("%s/admin/realms/%s/users",
+		strings.TrimRight(a.cfg.BaseURL, "/"), url.PathEscape(realmName))
+	createReq, err := http.NewRequestWithContext(ctx, http.MethodPost, createURL, bytes.NewReader(userBody))
+	if err != nil {
+		return "", err
+	}
+	createReq.Header.Set("Authorization", "Bearer "+token)
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := a.client.Do(createReq)
+	if err != nil {
+		return "", fmt.Errorf("create user %q: %w", username, err)
+	}
+	defer createResp.Body.Close()
+	io.Copy(io.Discard, createResp.Body) //nolint:errcheck
+
+	if createResp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("create user %q: HTTP %d", username, createResp.StatusCode)
+	}
+
+	// Retrieve user ID from Location header.
+	location := createResp.Header.Get("Location")
+	parts := strings.Split(strings.TrimRight(location, "/"), "/")
+	userID := parts[len(parts)-1]
+
+	// Set password.
+	if password != "" {
+		if err := a.setUserPassword(ctx, token, realmName, userID, password); err != nil {
+			return userID, err
+		}
+	}
+	return userID, nil
+}
+
+func (a *Adapter) setUserPassword(ctx context.Context, token, realmName, userID, password string) error {
+	cred := map[string]interface{}{
+		"type":      "password",
+		"value":     password,
+		"temporary": false,
+	}
+	body, _ := json.Marshal(cred)
+	pwURL := fmt.Sprintf("%s/admin/realms/%s/users/%s/reset-password",
+		strings.TrimRight(a.cfg.BaseURL, "/"), url.PathEscape(realmName), url.PathEscape(userID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, pwURL, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("set password: %w", err)
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck
+
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("set password: HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // --- internal helpers ---
 
 func (a *Adapter) refreshToken(ctx context.Context) error {

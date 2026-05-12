@@ -59,6 +59,19 @@ type RunConfig struct {
 	// ScenarioIDs, when non-empty, restricts execution to scenarios with a
 	// matching DeterministicID. Populated by --from-plan.
 	ScenarioIDs []string
+
+	// QuarantineEnabled activates quarantine-tag behaviour.
+	QuarantineEnabled bool
+
+	// QuarantineTag is the tag that marks a scenario as quarantined.
+	// Defaults to "@quarantine" when empty and QuarantineEnabled is true.
+	QuarantineTag string
+
+	// QuarantineBlocking, when true, quarantined failures still count as run
+	// failures (useful in hardened CI profiles). When false (default), a
+	// quarantined failure is demoted to StatusSkipped so the overall run
+	// result is not affected.
+	QuarantineBlocking bool
 }
 
 // ConfigProvider resolves runtime configuration for a workspace and profile.
@@ -81,6 +94,7 @@ type Runner struct {
 	hooks        *steps.HookRegistry    // may be nil; hooks are skipped when nil
 	reporter     reports.Reporter       // may be nil; falls back to ConsoleReporter when nil
 	adapters     *integrations.Registry // may be nil; adapter lifecycle skipped when nil
+	retention    store.RetentionConfig  // zero value means no pruning
 
 	// maxConcurrent caps the number of simultaneous RunAsync goroutines.
 	// A nil channel means no limit.
@@ -138,6 +152,14 @@ func (r *Runner) WithReporter(rep reports.Reporter) *Runner {
 // TeardownAll after the suite. Call before first use.
 func (r *Runner) WithAdapterRegistry(reg *integrations.Registry) *Runner {
 	r.adapters = reg
+	return r
+}
+
+// WithRetention configures run retention pruning. When workspaceID is
+// non-empty and cfg has non-zero limits, PruneRuns is called (best-effort)
+// after each run completes.
+func (r *Runner) WithRetention(cfg store.RetentionConfig) *Runner {
+	r.retention = cfg
 	return r
 }
 

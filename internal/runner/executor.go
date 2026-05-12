@@ -18,8 +18,11 @@ import (
 	"github.com/bcp-technology/lobster/internal/reports"
 	"github.com/bcp-technology/lobster/internal/steps"
 	"github.com/bcp-technology/lobster/internal/steps/builtin"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
+	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -30,6 +33,17 @@ import (
 // the run record and events to the store when a store is configured, enabling
 // GetRun / StreamRunEvents replay for sync runs.
 func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream runv1.RunService_RunSyncServer) error {
+	// Start a root OTel span for the entire run. When OTel is not configured
+	// the global provider is a no-op and this is a zero-cost call.
+	tracer := otel.GetTracerProvider().Tracer("lobster/runner")
+	ctx, runSpan := tracer.Start(ctx, "lobster.run")
+	defer runSpan.End()
+	if req.Selector != nil {
+		runSpan.SetAttributes(
+			attribute.String("lobster.workspace_id", req.Selector.WorkspaceId),
+			attribute.String("lobster.profile", req.Selector.ProfileName),
+		)
+	}
 	runID := newUUID()
 	seq := newSeq()
 	now := time.Now().UTC()
@@ -65,7 +79,7 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 			SelectorProfileName:   profPtr,
 			CreatedAt:             nowStr,
 		}); createErr != nil {
-			return status.Errorf(codes.Internal, "create run record: %v", createErr)
+			return status.Errorf(grpccodes.Internal, "create run record: %v", createErr)
 		}
 		if updateErr := r.store.Run.UpdateRunStatus(ctx, runstore.UpdateRunStatusParams{
 			RunID:     runID,
@@ -93,14 +107,14 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 			ProfileName:      req.Selector.ProfileName,
 			WaitForReadiness: true,
 		}); stackErr != nil {
-			return status.Errorf(codes.Internal, "ensure stack: %v", stackErr)
+			return status.Errorf(grpccodes.Internal, "ensure stack: %v", stackErr)
 		}
 	}
 
 	// Adapter setup runs once before the suite.
 	if r.adapters != nil {
 		if setupErr := r.adapters.SetupAll(ctx); setupErr != nil {
-			return status.Errorf(codes.Internal, "adapter setup: %v", setupErr)
+			return status.Errorf(grpccodes.Internal, "adapter setup: %v", setupErr)
 		}
 	}
 
@@ -113,7 +127,7 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 	if reg == nil {
 		reg = steps.NewRegistry()
 		if regErr := builtin.Register(reg); regErr != nil {
-			return status.Errorf(codes.Internal, "register builtin steps: %v", regErr)
+			return status.Errorf(grpccodes.Internal, "register builtin steps: %v", regErr)
 		}
 	}
 	if r.hooks == nil {
@@ -136,7 +150,7 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 	// BeforeSuite hooks.
 	if r.hooks != nil {
 		if hookErr := r.hooks.RunBeforeSuite(ctx); hookErr != nil {
-			return status.Errorf(codes.Internal, "before_suite hook: %v", hookErr)
+			return status.Errorf(grpccodes.Internal, "before_suite hook: %v", hookErr)
 		}
 	}
 
@@ -166,6 +180,13 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 				FeatureURI:      feature.URI,
 				Tags:            scenario.Tags,
 			}
+			// Per-scenario OTel span.
+			_, scenSpan := tracer.Start(ctx, "lobster.scenario") // Use start options for scenario attributes
+
+			scenSpan.SetAttributes(
+				attribute.String("lobster.scenario.name", scenario.Name),
+				attribute.String("lobster.feature", feature.Name),
+			)
 			reporter.ScenarioStarted(sc)
 			scenCtx := steps.NewScenarioContext(cfg.BaseURL, cfg.DefaultHeaders, suiteVars)
 			scenCtx.SoftAssertMode = cfg.SoftAssert
@@ -193,10 +214,19 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 					r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
 				}
 			}
+			// Quarantine: when a scenario fails but is non-blocking quarantined,
+			// demote its status to Skipped so the overall run result is unaffected.
+			if sc.Status == reports.StatusFailed && !cfg.QuarantineBlocking && scenarioIsQuarantined(scenario.Tags, cfg) {
+				sc.Status = reports.StatusSkipped
+			}
+			// Finish the scenario span with error status if the scenario failed.
+			if sc.Status == reports.StatusFailed {
+				scenSpan.SetStatus(codes.Error, "scenario failed")
+			}
+			scenSpan.End()
 			reporter.ScenarioFinished(sc)
 			runResult.Scenarios = append(runResult.Scenarios, sc)
 
-			// Upsert the run_scenarios row before appending the event so the
 			// run_events FK constraint on (run_id, payload_scenario_id) is
 			// satisfied. This is required both in daemon mode (where the API
 			// service may not have pre-populated scenario rows) and in local
@@ -273,6 +303,8 @@ done:
 			log.FromContext(ctx).Warn("stack teardown error", zap.String("run_id", runID), zap.Error(teardownErr))
 		}
 	}
+	// Best-effort retention pruning after run completes.
+	r.pruneRetention(ctx, req.Selector.WorkspaceId)
 	return nil
 }
 
@@ -312,7 +344,7 @@ func (r *Runner) RunAsync(ctx context.Context, req *runv1.RunAsyncRequest) (*run
 			SelectorProfileName:   profPtr,
 			CreatedAt:             nowStr,
 		}); createErr != nil {
-			return nil, status.Errorf(codes.Internal, "create run record: %v", createErr)
+			return nil, status.Errorf(grpccodes.Internal, "create run record: %v", createErr)
 		}
 	}
 
@@ -477,6 +509,10 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx cont
 					r.executeScenario(ctx, feature, scenario, reg, scenCtx, sc, cfg, reporter)
 				}
 			}
+			// Quarantine: demote failed non-blocking quarantined scenarios to skipped.
+			if sc.Status == reports.StatusFailed && !cfg.QuarantineBlocking && scenarioIsQuarantined(scenario.Tags, cfg) {
+				sc.Status = reports.StatusSkipped
+			}
 			runResult.Scenarios = append(runResult.Scenarios, sc)
 			if cfg.FailFast && sc.Status == reports.StatusFailed {
 				goto asyncDone
@@ -514,6 +550,38 @@ asyncDone:
 		}); teardownErr != nil {
 			logger.Warn("stack teardown error", zap.Error(teardownErr))
 		}
+	}
+	// Best-effort retention pruning after run completes.
+	r.pruneRetention(context.Background(), req.Selector.WorkspaceId)
+}
+
+// scenarioIsQuarantined returns true when quarantine mode is enabled and the
+// scenario carries the configured quarantine tag.
+func scenarioIsQuarantined(tags []string, cfg *RunConfig) bool {
+	if !cfg.QuarantineEnabled {
+		return false
+	}
+	tag := cfg.QuarantineTag
+	if tag == "" {
+		tag = "@quarantine"
+	}
+	bare := strings.TrimPrefix(tag, "@")
+	for _, t := range tags {
+		if t == tag || strings.TrimPrefix(t, "@") == bare {
+			return true
+		}
+	}
+	return false
+}
+
+// pruneRetention runs best-effort retention pruning for workspaceID after a
+// run completes. Errors are logged but not propagated.
+func (r *Runner) pruneRetention(ctx context.Context, workspaceID string) {
+	if r.store == nil {
+		return
+	}
+	if err := r.store.PruneRuns(ctx, workspaceID, r.retention); err != nil {
+		log.FromContext(ctx).Warn("retention pruning failed", zap.Error(err))
 	}
 }
 
@@ -636,13 +704,13 @@ const configResolveTimeout = 10 * time.Second
 
 func (r *Runner) resolveRunConfig(ctx context.Context, sel *runv1.RunSelector, exec *configv1.ExecutionConfig) (*RunConfig, error) {
 	if sel == nil {
-		return nil, status.Error(codes.InvalidArgument, "selector is required")
+		return nil, status.Error(grpccodes.InvalidArgument, "selector is required")
 	}
 	cfgCtx, cfgCancel := context.WithTimeout(ctx, configResolveTimeout)
 	defer cfgCancel()
 	cfg, err := r.configFn(cfgCtx, sel.WorkspaceId, sel.ProfileName)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "resolve config: %v", err)
+		return nil, status.Errorf(grpccodes.Internal, "resolve config: %v", err)
 	}
 	if exec != nil {
 		if exec.SoftAssert {
@@ -666,7 +734,7 @@ func (r *Runner) resolveRunConfig(ctx context.Context, sel *runv1.RunSelector, e
 	if cfg.ScenarioRegex != "" {
 		compiled, compileErr := regexp.Compile(cfg.ScenarioRegex)
 		if compileErr != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid scenario regex: %v", compileErr)
+			return nil, status.Errorf(grpccodes.InvalidArgument, "invalid scenario regex: %v", compileErr)
 		}
 		cfg.CompiledScenarioRegex = compiled
 	}
@@ -683,7 +751,7 @@ func (r *Runner) loadFeatures(ctx context.Context, cfg *RunConfig, sel *runv1.Ru
 	for _, fp := range paths {
 		parsed, err := parser.ParseGlob(fp)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "parse %q: %v", fp, err)
+			return nil, status.Errorf(grpccodes.InvalidArgument, "parse %q: %v", fp, err)
 		}
 		features = append(features, parsed...)
 	}

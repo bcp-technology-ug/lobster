@@ -94,11 +94,14 @@ Scenario: Wait for API readiness
 
 ### Variable interpolation
 
-Scenario variables can be referenced in step arguments using `${VAR_NAME}` syntax
-(planned for v0.2). In v0.1, variables set by steps such as
-`I store the output in variable "NAME"` or `I store the response body in variable "NAME"`
-are available in subsequent step handlers via `ScenarioContext.Variables` and are
-also injected as environment variables when running shell commands.
+Scenario variables can be referenced in step arguments using `${VAR_NAME}` syntax.
+Variables set by steps such as `I store the output in variable "NAME"` or
+`I store the response body in variable "NAME"` are expanded before the step
+pattern is matched, so they work in any step argument position.
+Variables are resolved from `ScenarioContext.Variables` first, then
+`ScenarioContext.SuiteVars`, and finally the process environment via `os.Expand`
+semantics. Unknown references are passed through unchanged (`${MISSING}` stays
+as-is rather than expanding to an empty string).
 
 Gherkin coverage in v0.1:
 

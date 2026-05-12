@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	planv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/plan"
 	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology/lobster/internal/store"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -306,6 +308,312 @@ func TestNewUUID_uniqueness(t *testing.T) {
 		}
 		seen[id] = true
 	}
+}
+
+// --- scenarioIsQuarantined tests ---
+
+func TestScenarioIsQuarantined_disabledAlwaysFalse(t *testing.T) {
+	t.Parallel()
+	cfg := &RunConfig{QuarantineEnabled: false, QuarantineTag: "@quarantine"}
+	tags := []string{"@quarantine"}
+	if scenarioIsQuarantined(tags, cfg) {
+		t.Error("expected false when QuarantineEnabled is false")
+	}
+}
+
+func TestScenarioIsQuarantined_enabledDefaultTag(t *testing.T) {
+	t.Parallel()
+	cfg := &RunConfig{QuarantineEnabled: true}
+	if !scenarioIsQuarantined([]string{"@quarantine"}, cfg) {
+		t.Error("expected true for @quarantine tag with default tag")
+	}
+}
+
+func TestScenarioIsQuarantined_enabledCustomTag(t *testing.T) {
+	t.Parallel()
+	cfg := &RunConfig{QuarantineEnabled: true, QuarantineTag: "@flaky"}
+	if !scenarioIsQuarantined([]string{"@flaky"}, cfg) {
+		t.Error("expected true for custom @flaky tag")
+	}
+	if scenarioIsQuarantined([]string{"@quarantine"}, cfg) {
+		t.Error("expected false when tag is @quarantine but custom tag is @flaky")
+	}
+}
+
+func TestScenarioIsQuarantined_matchesBareAndPrefixed(t *testing.T) {
+	t.Parallel()
+	cfg := &RunConfig{QuarantineEnabled: true, QuarantineTag: "@quarantine"}
+	// bare tag without @
+	if !scenarioIsQuarantined([]string{"quarantine"}, cfg) {
+		t.Error("expected true for bare 'quarantine' tag (no @ prefix)")
+	}
+}
+
+func TestScenarioIsQuarantined_noMatchingTag(t *testing.T) {
+	t.Parallel()
+	cfg := &RunConfig{QuarantineEnabled: true, QuarantineTag: "@quarantine"}
+	if scenarioIsQuarantined([]string{"@smoke", "@regression"}, cfg) {
+		t.Error("expected false for tags that don't include quarantine tag")
+	}
+}
+
+func TestScenarioIsQuarantined_emptyTags(t *testing.T) {
+	t.Parallel()
+	cfg := &RunConfig{QuarantineEnabled: true}
+	if scenarioIsQuarantined(nil, cfg) {
+		t.Error("expected false for nil tags")
+	}
+	if scenarioIsQuarantined([]string{}, cfg) {
+		t.Error("expected false for empty tags")
+	}
+}
+
+// --- Quarantine demotion in RunSync ---
+
+func TestRunSync_quarantinedFailureDemotedToSkipped(t *testing.T) {
+	t.Parallel()
+	// A scenario tagged @quarantine that would fail (undefined step) should
+	// be reported as skipped when QuarantineEnabled=true, QuarantineBlocking=false.
+	featureContent := `Feature: Quarantine
+  @quarantine
+  Scenario: Flaky scenario
+    Given a step that always fails
+`
+	tmp := t.TempDir()
+	fp := tmp + "/quarantine.feature"
+	if err := writeFile(fp, featureContent); err != nil {
+		t.Fatalf("write feature: %v", err)
+	}
+
+	cfgFn := func(_ context.Context, _, _ string) (*RunConfig, error) {
+		return &RunConfig{
+			FeaturePaths:       []string{fp},
+			QuarantineEnabled:  true,
+			QuarantineTag:      "@quarantine",
+			QuarantineBlocking: false,
+		}, nil
+	}
+	r := New(cfgFn, nil, nil, nil)
+	stream := &fakeStream{ctx: context.Background()}
+	req := &runv1.RunSyncRequest{
+		Selector: &runv1.RunSelector{WorkspaceId: "ws-quarantine"},
+	}
+	if err := r.RunSync(context.Background(), req, stream); err != nil {
+		t.Fatalf("RunSync error: %v", err)
+	}
+	// Find the scenario result event and check it is not FAILED.
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+	for _, ev := range stream.events {
+		if sr := ev.GetScenarioResult(); sr != nil {
+			// A quarantined undefined-step scenario should be demoted to SKIPPED.
+			statusStr := sr.GetStatus().String()
+			if statusStr == "SCENARIO_STATUS_FAILED" {
+				t.Errorf("quarantined scenario should not have status FAILED, got %s", statusStr)
+			}
+		}
+	}
+}
+
+func TestRunSync_quarantineBlockingKeepsFailure(t *testing.T) {
+	t.Parallel()
+	featureContent := `Feature: Quarantine blocking
+  @quarantine
+  Scenario: Blocking flaky
+    Given a step that does not exist
+`
+	tmp := t.TempDir()
+	fp := tmp + "/block.feature"
+	if err := writeFile(fp, featureContent); err != nil {
+		t.Fatalf("write feature: %v", err)
+	}
+
+	cfgFn := func(_ context.Context, _, _ string) (*RunConfig, error) {
+		return &RunConfig{
+			FeaturePaths:       []string{fp},
+			QuarantineEnabled:  true,
+			QuarantineTag:      "@quarantine",
+			QuarantineBlocking: true,
+		}, nil
+	}
+	r := New(cfgFn, nil, nil, nil)
+	stream := &fakeStream{ctx: context.Background()}
+	req := &runv1.RunSyncRequest{
+		Selector: &runv1.RunSelector{WorkspaceId: "ws-block"},
+	}
+	_ = r.RunSync(context.Background(), req, stream)
+	// With QuarantineBlocking=true the scenario remains FAILED/UNDEFINED, not
+	// demoted to SKIPPED.
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+	foundScenario := false
+	for _, ev := range stream.events {
+		if sr := ev.GetScenarioResult(); sr != nil {
+			foundScenario = true
+			statusStr := sr.GetStatus().String()
+			if statusStr == "SCENARIO_STATUS_SKIPPED" {
+				t.Errorf("blocking quarantine should not demote to SKIPPED, got %s", statusStr)
+			}
+		}
+	}
+	if !foundScenario {
+		t.Error("expected at least one scenario result event")
+	}
+}
+
+// --- ScenarioID filter in RunSync ---
+
+func TestRunSync_scenarioIDFilter(t *testing.T) {
+	t.Parallel()
+	featureContent := `Feature: ID Filter
+  Scenario: Alpha
+    Given I am in a new temporary directory
+
+  Scenario: Beta
+    Given I am in a new temporary directory
+`
+	tmp := t.TempDir()
+	fp := tmp + "/idfilter.feature"
+	if err := writeFile(fp, featureContent); err != nil {
+		t.Fatalf("write feature: %v", err)
+	}
+
+	// First, plan to get the deterministic ID for "Alpha".
+	cfgFn := func(_ context.Context, _, _ string) (*RunConfig, error) {
+		return &RunConfig{FeaturePaths: []string{fp}}, nil
+	}
+	planner := NewPlanner(cfgFn, nil)
+	planResp, err := planner.Plan(context.Background(), &planv1.PlanRequest{
+		Selector: &runv1.RunSelector{WorkspaceId: "ws"},
+	})
+	if err != nil || len(planResp.Plan.Scenarios) != 2 {
+		t.Fatalf("plan setup: err=%v scenarios=%d", err, len(planResp.Plan.Scenarios))
+	}
+	alphaID := ""
+	for _, sc := range planResp.Plan.Scenarios {
+		if sc.ScenarioName == "Alpha" {
+			alphaID = sc.ScenarioId
+		}
+	}
+	if alphaID == "" {
+		t.Fatal("could not find Alpha scenario ID")
+	}
+
+	// Run with only the Alpha scenario ID.
+	runCfgFn := func(_ context.Context, _, _ string) (*RunConfig, error) {
+		return &RunConfig{
+			FeaturePaths: []string{fp},
+			ScenarioIDs:  []string{alphaID},
+		}, nil
+	}
+	r := New(runCfgFn, nil, nil, nil)
+	stream := &fakeStream{ctx: context.Background()}
+	req := &runv1.RunSyncRequest{
+		Selector: &runv1.RunSelector{WorkspaceId: "ws"},
+	}
+	if err := r.RunSync(context.Background(), req, stream); err != nil {
+		t.Fatalf("RunSync error: %v", err)
+	}
+	// Expect exactly one scenario result event.
+	stream.mu.Lock()
+	var scenarioResults int
+	for _, ev := range stream.events {
+		if ev.GetScenarioResult() != nil {
+			scenarioResults++
+		}
+	}
+	stream.mu.Unlock()
+	if scenarioResults != 1 {
+		t.Errorf("expected 1 scenario result (Alpha only), got %d", scenarioResults)
+	}
+}
+
+// --- SoftAssert in RunSync ---
+
+func TestRunSync_softAssert_collectsMultipleFailures(t *testing.T) {
+	t.Parallel()
+	// Two assertions: one passes, one fails.
+	// With SoftAssert the scenario should still complete (not abort on first fail).
+	featureContent := `Feature: Soft assert
+  Scenario: Multiple assertions
+    Given I am in a new temporary directory
+    When I run the command "echo hello"
+    Then the output should contain "hello"
+    And the output should contain "world"
+`
+	tmp := t.TempDir()
+	fp := tmp + "/soft.feature"
+	if err := writeFile(fp, featureContent); err != nil {
+		t.Fatalf("write feature: %v", err)
+	}
+
+	cfgFn := func(_ context.Context, _, _ string) (*RunConfig, error) {
+		return &RunConfig{
+			FeaturePaths: []string{fp},
+			SoftAssert:   true,
+		}, nil
+	}
+	r := New(cfgFn, nil, nil, nil)
+	stream := &fakeStream{ctx: context.Background()}
+	req := &runv1.RunSyncRequest{
+		Selector: &runv1.RunSelector{WorkspaceId: "ws-soft"},
+	}
+	// RunSync should not return a gRPC error — scenario failure is in-band.
+	if err := r.RunSync(context.Background(), req, stream); err != nil {
+		t.Fatalf("RunSync returned unexpected gRPC error: %v", err)
+	}
+	// There should be exactly 1 scenario result event.
+	stream.mu.Lock()
+	var scenCount int
+	for _, ev := range stream.events {
+		if ev.GetScenarioResult() != nil {
+			scenCount++
+		}
+	}
+	stream.mu.Unlock()
+	if scenCount != 1 {
+		t.Errorf("expected 1 scenario result event, got %d", scenCount)
+	}
+}
+
+// --- WithRetention ---
+
+func TestWithRetention_setsFieldAndReturnsReceiver(t *testing.T) {
+	t.Parallel()
+	r := newTestRunner()
+	cfg := store.RetentionConfig{MaxRuns: 10, MaxAge: 24 * time.Hour}
+	r2 := r.WithRetention(cfg)
+	if r2 != r {
+		t.Error("WithRetention should return the same *Runner")
+	}
+	if r.retention.MaxRuns != 10 {
+		t.Errorf("MaxRuns: got %d want 10", r.retention.MaxRuns)
+	}
+	if r.retention.MaxAge != 24*time.Hour {
+		t.Errorf("MaxAge: got %v want 24h", r.retention.MaxAge)
+	}
+}
+
+func TestWithRetention_zeroConfig_noOp(t *testing.T) {
+	t.Parallel()
+	r := newTestRunner()
+	r2 := r.WithRetention(store.RetentionConfig{})
+	if r2 != r {
+		t.Error("WithRetention should return the same *Runner")
+	}
+	if r.retention.MaxRuns != 0 || r.retention.MaxAge != 0 {
+		t.Error("zero RetentionConfig should leave retention fields at zero")
+	}
+}
+
+// --- pruneRetention ---
+
+func TestPruneRetention_nilStore_noOp(t *testing.T) {
+	t.Parallel()
+	r := New(emptyCfgFn, nil, nil, nil)
+	r.retention = store.RetentionConfig{MaxRuns: 5}
+	// Should not panic when store is nil.
+	r.pruneRetention(context.Background(), "ws-test")
 }
 
 // writeFile writes content to path for test setup.

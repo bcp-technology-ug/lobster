@@ -25,45 +25,42 @@ Command:
 go test ./...
 ```
 
-## Integration tests (Lobster-driven)
+## Integration and end-to-end tests (Lobster-driven)
 
-Integration suites are authored as Lobster feature files and executed with Lobster.
+Integration and E2E suites are authored as Lobster feature files under `tests/features/`
+and executed with Lobster itself.
 
-Scope:
+Integration scope:
 
 - interactions across multiple internal components
 - compose lifecycle and readiness handling
 - API contract behavior at service boundaries
 - parity between local execution and daemon-backed execution for the same request/response shapes
 
-Typical location:
-
-- `tests/integration/`
-
-Execution:
-
-```bash
-lobster run --features "tests/integration/**/*.feature"
-```
-
-## End-to-end tests (Lobster-driven)
-
-E2E suites represent user-visible and operator-visible full workflows.
-
-Scope:
+E2E scope:
 
 - full stack orchestration
 - realistic failure diagnostics paths
 - report generation and CI artifact behavior
 
-Typical location:
+Location:
 
-- `tests/e2e/`
+- `tests/features/`
+
+Suites are tagged to distinguish scope: `@integration` for cross-component scenarios,
+`@docker` and `@daemon` for daemon and compose-stack scenarios.
 
 Execution:
 
 ```bash
-lobster run --features "tests/e2e/**/*.feature" --ci
+# All suites
+lobster run --features "tests/features/**/*.feature"
+
+# Integration only
+lobster run --features "tests/features/**/*.feature" --tags @integration
+
+# Daemon/docker only
+lobster run --features "tests/features/**/*.feature" --tags "@docker or @daemon" --ci
 ```
 
 ## Dogfooding policy
@@ -72,7 +69,7 @@ Lobster uses self-hosted testing for integration and E2E quality gates.
 
 Required policy:
 
-- integration and E2E suites are executed by Lobster itself
+- suites are executed by Lobster itself
 - CI must run suites with binaries built from the current commit
 - pull requests fail if the candidate binaries cannot pass Lobster-driven suites
 
@@ -80,8 +77,7 @@ Recommended CI flow:
 
 1. build candidate binaries (`lobster`, `lobsterd`) from current commit
 2. run Go unit tests
-3. run Lobster-driven integration suites with candidate `lobster`
-4. run Lobster-driven E2E suites with candidate `lobster`
+3. run Lobster-driven feature suites with candidate `lobster`
 
 Contract coverage note:
 
@@ -94,9 +90,8 @@ Example candidate-binary flow:
 go build -o bin/lobster ./cmd/lobster
 go build -o bin/lobsterd ./cmd/lobsterd
 
-./bin/lobster validate --features "tests/**/*.feature"
-./bin/lobster run --ci --features "tests/integration/**/*.feature"
-./bin/lobster run --ci --features "tests/e2e/**/*.feature"
+./bin/lobster validate --features "tests/features/**/*.feature"
+./bin/lobster run --ci --features "tests/features/**/*.feature"
 ```
 
 ## Tags and suite routing

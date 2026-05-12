@@ -85,11 +85,14 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 			workspaceID := valueString(cmd, v, "workspace.selected", "workspace")
 
 			// Auth config from flags / env.
+			// --auth-mode flag: "token" (default) or "none" (insecure local)
+			authMode := valueString(cmd, v, "transport.auth.mode", "auth-mode")
+			insecureLocal := valueBool(cmd, v, "transport.allow_insecure_local", "insecure-local") || authMode == "none"
 			authCfg := middleware.AuthConfig{
 				JWKSUrl:            valueString(cmd, v, "transport.auth.jwks_url", "jwks-url"),
 				StaticToken:        valueString(cmd, v, "transport.auth.static_bearer_token", "static-token"),
-				AllowInsecureLocal: valueBool(cmd, v, "transport.allow_insecure_local", "insecure-local"),
-				ExplicitLocalMode:  valueBool(cmd, v, "transport.allow_insecure_local", "insecure-local"),
+				AllowInsecureLocal: insecureLocal,
+				ExplicitLocalMode:  insecureLocal,
 			}
 
 			st, err := store.Open(ctx, storeCfg)
@@ -127,15 +130,18 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 			runCfgFn := runner.ConfigProvider(func(_ context.Context, _, profileName string) (*runner.RunConfig, error) {
 				_ = profileName
 				return &runner.RunConfig{
-					BaseURL:        v.GetString("http.base_url"),
-					DefaultHeaders: v.GetStringMapString("http.default_headers"),
-					Variables:      v.GetStringMapString("variables.suite"),
-					FeaturePaths:   v.GetStringSlice("features.paths"),
-					StepTimeout:    v.GetDuration("execution.step_timeout"),
-					RunTimeout:     v.GetDuration("execution.timeout"),
-					SoftAssert:     v.GetBool("execution.soft_assert"),
-					FailFast:       v.GetBool("execution.fail_fast"),
-					KeepStack:      v.GetBool("execution.keep_stack"),
+					BaseURL:            v.GetString("http.base_url"),
+					DefaultHeaders:     v.GetStringMapString("http.default_headers"),
+					Variables:          v.GetStringMapString("variables.suite"),
+					FeaturePaths:       v.GetStringSlice("features.paths"),
+					StepTimeout:        v.GetDuration("execution.step_timeout"),
+					RunTimeout:         v.GetDuration("execution.timeout"),
+					SoftAssert:         v.GetBool("execution.soft_assert"),
+					FailFast:           v.GetBool("execution.fail_fast"),
+					KeepStack:          v.GetBool("execution.keep_stack"),
+					QuarantineEnabled:  v.GetBool("quarantine.enabled"),
+					QuarantineTag:      v.GetString("quarantine.tag"),
+					QuarantineBlocking: v.GetBool("quarantine.blocking_in_main_ci"),
 				}, nil
 			})
 
@@ -152,6 +158,14 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 			if maxConcurrent > 0 {
 				runnerImpl = runnerImpl.WithMaxConcurrentRuns(maxConcurrent)
 			}
+			// Apply retention config.
+			daemonRetention := store.RetentionConfig{
+				MaxRuns: int64(v.GetInt("persistence.retention.max_runs")),
+				MaxAge:  v.GetDuration("persistence.retention.max_age"),
+			}
+			if daemonRetention.MaxRuns > 0 || daemonRetention.MaxAge > 0 {
+				runnerImpl = runnerImpl.WithRetention(daemonRetention)
+			}
 			plannerImpl := runner.NewPlanner(runCfgFn, st)
 
 			// --- integrations ---
@@ -166,6 +180,9 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 				})
 				if regErr := intReg.Register(kcAdapter); regErr != nil {
 					return fmt.Errorf("register keycloak adapter: %w", regErr)
+				}
+				if regErr := kcAdapter.RegisterSteps(reg); regErr != nil {
+					return fmt.Errorf("register keycloak steps: %w", regErr)
 				}
 			}
 			runnerImpl = runnerImpl.WithAdapterRegistry(intReg)
@@ -276,6 +293,7 @@ func addDaemonFlags(fs *pflag.FlagSet) {
 	fs.String("workspace", "", "workspace selection for monorepo isolation")
 	fs.String("profile", "", "active config profile name")
 	fs.String("sqlite-path", "", "explicit SQLite path override")
+	fs.String("db-path", "", "SQLite database path (alias for --sqlite-path)")
 	fs.String("migrations-dir", "migrations", "directory containing SQL migrations")
 	fs.String("migration-mode", "auto", "migration mode: auto|external|disabled")
 	fs.String("journal-mode", "", "SQLite journal mode override")
@@ -284,6 +302,10 @@ func addDaemonFlags(fs *pflag.FlagSet) {
 	fs.String("jwks-url", "", "JWKS endpoint URL for token validation")
 	fs.String("static-token", "", "static bearer token for development use")
 	fs.Bool("insecure-local", false, "skip auth token checks (local development only)")
+	fs.String("auth-mode", "token", "auth mode: token|none (none disables token checks for local development)")
+	fs.String("tls-cert-file", "", "TLS server certificate file")
+	fs.String("tls-key-file", "", "TLS server private key file")
+	fs.String("tls-client-ca-file", "", "trusted CA bundle for mTLS client certificate verification")
 }
 
 func buildStoreConfigFromInputs(cmd *cobra.Command, v *viper.Viper) (store.Config, string, error) {
@@ -298,7 +320,7 @@ func buildStoreConfigFromInputs(cmd *cobra.Command, v *viper.Viper) (store.Confi
 		Profile: config.Profile{
 			Compose: config.ComposeConfig{MigrationMode: migrationMode},
 			Persistence: config.PersistenceConfig{SQLite: config.SQLiteConfig{
-				Path:        valueString(cmd, v, "persistence.sqlite.path", "sqlite-path"),
+				Path:        valueStringFallback(cmd, v, "persistence.sqlite.path", "sqlite-path", "db-path"),
 				JournalMode: valueString(cmd, v, "persistence.sqlite.journal_mode", "journal-mode"),
 				Synchronous: valueString(cmd, v, "persistence.sqlite.synchronous", "synchronous"),
 				BusyTimeout: valueDuration(cmd, v, "persistence.sqlite.busy_timeout", "busy-timeout"),
@@ -321,6 +343,18 @@ func buildStoreConfigFromInputs(cmd *cobra.Command, v *viper.Viper) (store.Confi
 func valueString(cmd *cobra.Command, v *viper.Viper, key, flagName string) string {
 	if f := cmd.Flags().Lookup(flagName); f != nil && f.Changed {
 		return strings.TrimSpace(f.Value.String())
+	}
+	return strings.TrimSpace(v.GetString(key))
+}
+
+// valueStringFallback is like valueString but checks an additional flag alias
+// (aliasFlag) when the primary flag is not set.
+func valueStringFallback(cmd *cobra.Command, v *viper.Viper, key, flagName, aliasFlag string) string {
+	if f := cmd.Flags().Lookup(flagName); f != nil && f.Changed {
+		return strings.TrimSpace(f.Value.String())
+	}
+	if a := cmd.Flags().Lookup(aliasFlag); a != nil && a.Changed {
+		return strings.TrimSpace(a.Value.String())
 	}
 	return strings.TrimSpace(v.GetString(key))
 }

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"time"
 
@@ -73,9 +74,22 @@ func (p *Planner) Plan(ctx context.Context, req *planv1.PlanRequest) (*planv1.Pl
 		},
 	}
 
+	// Compile scenario name regex filter (from config; e.g. --scenario-regex).
+	var scenarioRegex *regexp.Regexp
+	if cfg.ScenarioRegex != "" {
+		compiled, reErr := regexp.Compile(cfg.ScenarioRegex)
+		if reErr != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid scenario-regex %q: %v", cfg.ScenarioRegex, reErr)
+		}
+		scenarioRegex = compiled
+	}
+
 	for _, feature := range features {
 		for _, scenario := range feature.Scenarios {
 			if req.Selector.TagExpression != "" && !matchesTagExpression(scenario.Tags, req.Selector.TagExpression) {
+				continue
+			}
+			if scenarioRegex != nil && !scenarioRegex.MatchString(scenario.Name) {
 				continue
 			}
 			exIdx := int32(-1)

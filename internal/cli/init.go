@@ -18,6 +18,7 @@ func newInitCommand(_ *viper.Viper) *cobra.Command {
 		features      string
 		compose       string
 		noInteractive bool
+		force         bool
 	)
 
 	cmd := &cobra.Command{
@@ -33,8 +34,8 @@ func newInitCommand(_ *viper.Viper) *cobra.Command {
 			root = filepath.Clean(root)
 
 			lobsterYAML := filepath.Join(root, "lobster.yaml")
-			if _, err := os.Stat(lobsterYAML); err == nil {
-				return fmt.Errorf("lobster.yaml already exists at %s — use --config to point to an existing config", lobsterYAML)
+			if _, err := os.Stat(lobsterYAML); err == nil && !force {
+				return fmt.Errorf("lobster.yaml already exists at %s — use --force to overwrite or --config to point to an existing config", lobsterYAML)
 			}
 
 			// Collect inputs: interactive form, stdin fallback, or flags.
@@ -131,6 +132,7 @@ func newInitCommand(_ *viper.Viper) *cobra.Command {
 	cmd.Flags().StringVar(&features, "features", "", "feature file glob (default: features/**/*.feature)")
 	cmd.Flags().StringVar(&compose, "compose", "", "docker-compose file path (optional)")
 	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "skip interactive form and use flags only")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing lobster.yaml if present")
 
 	return cmd
 }
