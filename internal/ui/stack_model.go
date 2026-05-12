@@ -36,14 +36,14 @@ type stackLoadMsg struct {
 func NewStackStatusModel(client stackv1.StackServiceClient, workspace string, watch bool) StackStatusModel {
 	cols := []table.Column{
 		{Title: "Service", Width: 20},
-		{Title: "Container ID", Width: 14},
+		{Title: "Container ID", Width: 12},
 		{Title: "Status", Width: 10},
 		{Title: "Health", Width: 12},
 	}
 	t := table.New(
 		table.WithColumns(cols),
 		table.WithFocused(true),
-		table.WithHeight(20),
+		table.WithHeight(3),
 	)
 	t.SetStyles(tableStyles())
 	return StackStatusModel{
@@ -69,6 +69,11 @@ func tickAfter(d time.Duration) tea.Cmd {
 }
 
 func (m StackStatusModel) fetchCmd() tea.Cmd {
+	if m.workspace == "" {
+		return func() tea.Msg {
+			return stackLoadMsg{err: fmt.Errorf("no workspace set — pass --workspace or set workspace.selected in lobster.yaml")}
+		}
+	}
 	return func() tea.Msg {
 		ctx, cancel := contextWithTimeout(5 * time.Second)
 		defer cancel()
@@ -89,13 +94,15 @@ func (m StackStatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		cw := m.cardWidth()
 		tableInner := cw - 6
-		svcWidth := tableInner - 36
+		// fixed cols: ContainerID(12)+Status(10)+Health(12) = 34
+		// service name absorbs the slack; cardWidth() floor ensures svcWidth >= 20.
+		svcWidth := tableInner - 34
 		if svcWidth < 20 {
 			svcWidth = 20
 		}
 		m.table.SetColumns([]table.Column{
 			{Title: "Service", Width: svcWidth},
-			{Title: "Container ID", Width: 14},
+			{Title: "Container ID", Width: 12},
 			{Title: "Status", Width: 10},
 			{Title: "Health", Width: 12},
 		})
@@ -223,18 +230,20 @@ func stackStatusLabel(s stackv1.StackStatus) string {
 	}
 }
 
-// serviceHealthLabel returns a colored badge for a ServiceHealth value.
+// serviceHealthLabel returns a plain-text health label safe for bubbles table
+// cells (runewidth.Truncate is not ANSI-aware; ANSI codes in cell values break
+// the right-side formatting of every column that follows).
 func serviceHealthLabel(h stackv1.ServiceHealth) string {
 	switch h {
 	case stackv1.ServiceHealth_SERVICE_HEALTH_HEALTHY:
-		return BadgePassed.Render("healthy")
+		return "healthy"
 	case stackv1.ServiceHealth_SERVICE_HEALTH_STARTING:
-		return BadgePending.Render("starting")
+		return "starting"
 	case stackv1.ServiceHealth_SERVICE_HEALTH_UNHEALTHY:
-		return BadgeFailed.Render("unhealthy")
+		return "unhealthy"
 	case stackv1.ServiceHealth_SERVICE_HEALTH_UNKNOWN:
-		return BadgeCancelled.Render("unknown")
+		return "unknown"
 	default:
-		return BadgeCancelled.Render("unspecified")
+		return "unspecified"
 	}
 }

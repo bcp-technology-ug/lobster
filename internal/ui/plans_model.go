@@ -17,6 +17,7 @@ type PlansListModel struct {
 	client    planv1.PlanServiceClient
 	workspace string
 	plans     []*planv1.ExecutionPlan
+	filtered  []*planv1.ExecutionPlan // mirrors table rows after filtering
 	table     table.Model
 	filter    textinput.Model
 	filtering bool
@@ -50,16 +51,16 @@ type plansDetailLoadMsg struct {
 func NewPlansListModel(client planv1.PlanServiceClient, workspace string) PlansListModel {
 	cols := []table.Column{
 		{Title: "ID", Width: 8},
-		{Title: "Workspace", Width: 16},
-		{Title: "Profile", Width: 12},
-		{Title: "Scenarios", Width: 10},
-		{Title: "Est. Duration", Width: 14},
-		{Title: "Created", Width: 20},
+		{Title: "Workspace", Width: 8},
+		{Title: "Profile", Width: 10},
+		{Title: "Scenarios", Width: 8},
+		{Title: "Est. Duration", Width: 10},
+		{Title: "Created", Width: 10},
 	}
 	t := table.New(
 		table.WithColumns(cols),
 		table.WithFocused(true),
-		table.WithHeight(20),
+		table.WithHeight(3),
 	)
 	t.SetStyles(tableStyles())
 
@@ -130,17 +131,19 @@ func (m PlansListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		cw := m.cardWidth()
 		tableInner := cw - 6
-		wsWidth := tableInner - 57
+		// fixed cols: ID(8)+Profile(10)+Scenarios(8)+EstDur(10)+Created(10) = 46
+		// workspace absorbs the slack; cardWidth() floor ensures wsWidth >= 8.
+		wsWidth := tableInner - 46
 		if wsWidth < 8 {
 			wsWidth = 8
 		}
 		m.table.SetColumns([]table.Column{
 			{Title: "ID", Width: 8},
 			{Title: "Workspace", Width: wsWidth},
-			{Title: "Profile", Width: 12},
-			{Title: "Scenarios", Width: 9},
-			{Title: "Est. Duration", Width: 12},
-			{Title: "Created", Width: 16},
+			{Title: "Profile", Width: 10},
+			{Title: "Scenarios", Width: 8},
+			{Title: "Est. Duration", Width: 10},
+			{Title: "Created", Width: 10},
 		})
 		m.table.SetHeight(max(3, m.height-10))
 
@@ -167,8 +170,8 @@ func (m PlansListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.filter.Focus()
 			return m, textinput.Blink
 		case "enter":
-			if row := m.table.SelectedRow(); len(row) > 0 {
-				return m, m.openDetail(row[0])
+			if idx := m.table.Cursor(); idx >= 0 && idx < len(m.filtered) {
+				return m, m.openDetail(m.filtered[idx].GetPlanId())
 			}
 		case "r":
 			m.loading = true
@@ -222,6 +225,7 @@ func (m *PlansListModel) openDetail(planID string) tea.Cmd {
 func (m *PlansListModel) applyFilter() {
 	filterText := strings.ToLower(m.filter.Value())
 	var rows []table.Row
+	var filtered []*planv1.ExecutionPlan
 	for _, p := range m.plans {
 		idShort := shortID(p.GetPlanId())
 		workspace := p.GetWorkspaceId()
@@ -243,8 +247,10 @@ func (m *PlansListModel) applyFilter() {
 			strings.Contains(strings.ToLower(workspace), filterText) ||
 			strings.Contains(strings.ToLower(profile), filterText) {
 			rows = append(rows, row)
+			filtered = append(filtered, p)
 		}
 	}
+	m.filtered = filtered
 	m.table.SetRows(rows)
 }
 

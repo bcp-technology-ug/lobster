@@ -18,6 +18,7 @@ type RunsListModel struct {
 	client    runv1.RunServiceClient
 	workspace string
 	rows      []*runv1.Run
+	filtered  []*runv1.Run // mirrors table rows after filtering
 	table     table.Model
 	filter    textinput.Model
 	filtering bool
@@ -41,16 +42,16 @@ type runsLoadMsg struct {
 func NewRunsListModel(client runv1.RunServiceClient, workspace string) RunsListModel {
 	cols := []table.Column{
 		{Title: "ID", Width: 8},
-		{Title: "Status", Width: 12},
-		{Title: "Workspace", Width: 16},
-		{Title: "Scenarios", Width: 10},
-		{Title: "Duration", Width: 10},
-		{Title: "Created", Width: 20},
+		{Title: "Status", Width: 10},
+		{Title: "Workspace", Width: 8},
+		{Title: "Scenarios", Width: 9},
+		{Title: "Duration", Width: 8},
+		{Title: "Created", Width: 11},
 	}
 	t := table.New(
 		table.WithColumns(cols),
 		table.WithFocused(true),
-		table.WithHeight(20),
+		table.WithHeight(3),
 	)
 	t.SetStyles(tableStyles())
 
@@ -114,17 +115,19 @@ func (m RunsListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		cw := m.cardWidth()
 		tableInner := cw - 6 // subtract border(2) + padding(4)
-		wsWidth := tableInner - 53
+		// fixed cols: ID(8)+Status(10)+Scenarios(9)+Duration(8)+Created(11) = 46
+		// workspace absorbs the slack; cardWidth() floor ensures wsWidth >= 8.
+		wsWidth := tableInner - 46
 		if wsWidth < 8 {
 			wsWidth = 8
 		}
 		m.table.SetColumns([]table.Column{
 			{Title: "ID", Width: 8},
-			{Title: "Status", Width: 12},
+			{Title: "Status", Width: 10},
 			{Title: "Workspace", Width: wsWidth},
 			{Title: "Scenarios", Width: 9},
 			{Title: "Duration", Width: 8},
-			{Title: "Created", Width: 16},
+			{Title: "Created", Width: 11},
 		})
 		m.table.SetHeight(max(3, m.height-10))
 
@@ -151,8 +154,8 @@ func (m RunsListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.filter.Focus()
 			return m, textinput.Blink
 		case "enter":
-			if row := m.table.SelectedRow(); len(row) > 0 {
-				return m, m.openDetail(row[0])
+			if idx := m.table.Cursor(); idx >= 0 && idx < len(m.filtered) {
+				return m, m.openDetail(m.filtered[idx].GetRunId())
 			}
 		case "r":
 			m.loading = true
@@ -215,6 +218,7 @@ func (m RunsListModel) openDetail(runID string) tea.Cmd {
 func (m *RunsListModel) applyRebuild() {
 	filterText := strings.ToLower(m.filter.Value())
 	var rows []table.Row
+	var filtered []*runv1.Run
 	for _, r := range m.rows {
 		idShort := shortID(r.GetRunId())
 		status := runStatusLabel(r.GetStatus().String())
@@ -235,8 +239,10 @@ func (m *RunsListModel) applyRebuild() {
 		if filterText == "" || strings.Contains(strings.ToLower(workspace), filterText) ||
 			strings.Contains(strings.ToLower(idShort), filterText) {
 			rows = append(rows, row)
+			filtered = append(filtered, r)
 		}
 	}
+	m.filtered = filtered
 	m.table.SetRows(rows)
 }
 
@@ -288,21 +294,24 @@ func (m RunsListModel) cardWidth() int {
 	return w
 }
 
-// runStatusLabel returns a colored badge for a run status string.
+// runStatusLabel returns a plain-text status label safe for bubbles table cells.
+// Bubbles uses runewidth.Truncate internally, which is not ANSI-aware; any
+// escape code in a cell value can be mis-measured and truncated mid-sequence,
+// corrupting every column to the right. Plain text avoids this entirely.
 func runStatusLabel(s string) string {
 	switch s {
 	case "RUN_STATUS_RUNNING":
-		return BadgeRunning.Render("running")
+		return "running"
 	case "RUN_STATUS_PASSED":
-		return BadgePassed.Render("passed")
+		return "passed"
 	case "RUN_STATUS_FAILED":
-		return BadgeFailed.Render("failed")
+		return "failed"
 	case "RUN_STATUS_CANCELLED":
-		return BadgeCancelled.Render("cancelled")
+		return "cancelled"
 	case "RUN_STATUS_PENDING":
-		return BadgePending.Render("pending")
+		return "pending"
 	default:
-		return BadgeCancelled.Render(strings.ToLower(strings.TrimPrefix(s, "RUN_STATUS_")))
+		return strings.ToLower(strings.TrimPrefix(s, "RUN_STATUS_"))
 	}
 }
 

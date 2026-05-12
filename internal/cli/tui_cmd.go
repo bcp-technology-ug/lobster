@@ -10,6 +10,7 @@ import (
 	"github.com/bcp-technology/lobster/internal/api/middleware"
 	"github.com/bcp-technology/lobster/internal/store"
 	"github.com/bcp-technology/lobster/internal/ui"
+	lobstermigrations "github.com/bcp-technology/lobster/migrations"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -20,7 +21,7 @@ import (
 // newTUICommand creates the `lobster tui` command, which opens the full tabbed
 // lobby TUI. When --executor-addr is omitted it starts an embedded in-process
 // gRPC server backed by the local SQLite store so no daemon is required.
-func newTUICommand(_ *viper.Viper) *cobra.Command {
+func newTUICommand(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Open the interactive TUI (local or connected to daemon)",
@@ -41,6 +42,10 @@ To connect to a running lobsterd daemon instead:
 			}
 
 			workspace, _ := cmd.Flags().GetString("workspace")
+			// Fall back to config-file / env workspace when flag not explicitly set.
+			if workspace == "" {
+				workspace = strings.TrimSpace(v.GetString("workspace.selected"))
+			}
 			addr := strings.TrimSpace(cmd.Flag("executor-addr").Value.String())
 
 			var conn *grpc.ClientConn
@@ -91,7 +96,7 @@ To connect to a running lobsterd daemon instead:
 // server on a random loopback port, and returns a client connection to it.
 // The server runs for the lifetime of ctx.
 func startEmbeddedTUIServer(ctx context.Context) (*grpc.ClientConn, error) {
-	st, err := store.Open(ctx, store.DefaultConfig())
+	st, err := store.OpenWithMigrationsFS(ctx, store.DefaultConfig(), lobstermigrations.FS)
 	if err != nil {
 		return nil, fmt.Errorf("open local store: %w", err)
 	}
