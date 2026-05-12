@@ -25,6 +25,10 @@ type LoadOptions struct {
 	BusyTimeout   time.Duration
 }
 
+// DefaultSQLitePath returns the default local SQLite database path used when
+// no explicit path or workspace is configured (e.g., in daemon mode).
+func DefaultSQLitePath() string { return defaultSQLitePath }
+
 // DefaultConfig returns conservative defaults aligned with docs/persistence.md.
 func DefaultConfig() Config {
 	return Config{
@@ -38,12 +42,15 @@ func DefaultConfig() Config {
 }
 
 // ConfigFromOptions applies explicit overrides over default persistence settings.
+// If opts.SQLitePath is empty, the returned config will also have an empty
+// SQLitePath; callers should treat an empty SQLitePath as "no persistence".
 func ConfigFromOptions(opts LoadOptions) Config {
 	cfg := DefaultConfig()
 
-	if opts.SQLitePath != "" {
-		cfg.SQLitePath = opts.SQLitePath
-	}
+	// SQLitePath is intentionally not defaulted here: an empty path means the
+	// caller did not configure persistence and the store should not be opened.
+	cfg.SQLitePath = opts.SQLitePath
+
 	if opts.MigrationsDir != "" {
 		cfg.MigrationsDir = opts.MigrationsDir
 	}

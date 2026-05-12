@@ -135,6 +135,9 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 			})
 
 			runnerImpl := runner.New(runCfgFn, orch, reg, st)
+			daemonHooks := steps.NewHookRegistry()
+			builtin.RegisterHooks(daemonHooks)
+			runnerImpl = runnerImpl.WithHooks(daemonHooks)
 			plannerImpl := runner.NewPlanner(runCfgFn, st)
 
 			// --- integrations ---
@@ -288,6 +291,12 @@ func buildStoreConfigFromInputs(cmd *cobra.Command, v *viper.Viper) (store.Confi
 	})
 	if err != nil {
 		return store.Config{}, "", err
+	}
+
+	// Daemon always requires a store; fall back to a sensible local default
+	// when neither an explicit sqlite-path nor a workspace is configured.
+	if cfg.SQLitePath == "" {
+		cfg.SQLitePath = store.DefaultSQLitePath()
 	}
 
 	return cfg, migrationMode, nil

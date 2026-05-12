@@ -42,7 +42,7 @@ func Ensure(db *sql.DB, migrationsDir string, mode Mode) error {
 	}
 
 	sourceURL := "file://" + filepath.ToSlash(absDir)
-	driver, err := sqlite3driver.WithInstance(db, &sqlite3driver.Config{})
+	driver, err := sqlite3driver.WithInstance(db, &sqlite3driver.Config{NoTxWrap: true})
 	if err != nil {
 		return fmt.Errorf("create sqlite migration driver: %w", err)
 	}

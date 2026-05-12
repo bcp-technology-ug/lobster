@@ -37,34 +37,43 @@ func newInitCommand(_ *viper.Viper) *cobra.Command {
 				return fmt.Errorf("lobster.yaml already exists at %s — use --config to point to an existing config", lobsterYAML)
 			}
 
-			// Collect inputs: interactive form or flags.
-			if !noInteractive && !cmd.Flags().Changed("project") && ui.IsInteractive() {
+			// Collect inputs: interactive form, stdin fallback, or flags.
+			if !noInteractive && !cmd.Flags().Changed("project") {
 				fields := &ui.InitFields{
 					Project:   project,
 					Workspace: workspace,
 					Features:  features,
 					Compose:   compose,
 				}
-				// Apply defaults before showing the form.
+				// Apply defaults before showing the form / reading stdin.
 				if fields.Features == "" {
 					fields.Features = "features/**/*.feature"
 				}
 
-				form := ui.NewInitForm(fields)
-				if err := form.Run(); err != nil {
-					if ui.IsFormAborted(err) {
-						return fmt.Errorf("init cancelled")
+				if ui.IsInteractive() {
+					form := ui.NewInitForm(fields)
+					if err := form.Run(); err != nil {
+						if ui.IsFormAborted(err) {
+							return fmt.Errorf("init cancelled")
+						}
+						return fmt.Errorf("form: %w", err)
 					}
-					return fmt.Errorf("form: %w", err)
+				} else {
+					// Non-TTY stdin fallback: read up to 4 newline-delimited lines.
+					// Usage: printf 'my-project\n\n\n\n' | lobster init .
+					if err := ui.ReadInitFieldsFromReader(cmd.InOrStdin(), fields); err != nil {
+						return err
+					}
 				}
 				project = fields.Project
 				workspace = fields.Workspace
 				features = fields.Features
 				compose = fields.Compose
-			} else {
-				// Non-interactive path: --project is required.
+			} else if noInteractive || cmd.Flags().Changed("project") {
+				// --no-interactive or explicit --project flag: project is required.
 				if strings.TrimSpace(project) == "" {
-					return fmt.Errorf("--project is required in non-interactive mode")
+					_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Error", "--project is required in non-interactive mode", "", ""))
+					return &ExitError{Code: ExitConfigError}
 				}
 			}
 

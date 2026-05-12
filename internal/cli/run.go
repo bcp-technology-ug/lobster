@@ -314,6 +314,10 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 
 	r := runner.New(configFn, orch, reg, st)
 
+	hooks := steps.NewHookRegistry()
+	builtin.RegisterHooks(hooks)
+	r = r.WithHooks(hooks)
+
 	// Side-car reporters (JSON, JUnit) + capture reporter for undefined steps.
 	var extraReporters []reports.Reporter
 	if reportJSON != "" {
@@ -337,6 +341,12 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	// Print undefined steps summary.
 	if capture.Result != nil {
 		printUndefinedStepsSummary(cmd, capture.Result)
+	}
+
+	// In CI/console mode, RunSync does not propagate scenario failures as
+	// errors. Check the captured result to ensure we exit non-zero.
+	if runErr == nil && capture.Result != nil && capture.Result.Failed > 0 {
+		return &ExitError{Code: ExitScenarioFailure}
 	}
 
 	return runErr

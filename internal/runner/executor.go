@@ -58,6 +58,11 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 			return status.Errorf(codes.Internal, "register builtin steps: %v", regErr)
 		}
 	}
+	if r.hooks == nil {
+		h := steps.NewHookRegistry()
+		builtin.RegisterHooks(h)
+		r.hooks = h
+	}
 
 	runResult := &reports.RunResult{
 		RunID:     runID,
@@ -241,6 +246,11 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest) {
 	if reg == nil {
 		reg = steps.NewRegistry()
 		_ = builtin.Register(reg)
+	}
+	if r.hooks == nil {
+		h := steps.NewHookRegistry()
+		builtin.RegisterHooks(h)
+		r.hooks = h
 	}
 
 	runResult := &reports.RunResult{

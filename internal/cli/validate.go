@@ -20,7 +20,8 @@ func newValidateCommand(v *viper.Viper) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			glob := valueString(cmd, v, "features.paths.0", "features")
 			if strings.TrimSpace(glob) == "" {
-				return fmt.Errorf("--features is required (e.g. --features 'features/**/*.feature')")
+				_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Error", "--features is required (e.g. --features 'features/**/*.feature')", "", ""))
+				return &ExitError{Code: ExitConfigError}
 			}
 			strictMode, _ := cmd.Flags().GetBool("strict")
 			format, _ := cmd.Flags().GetString("format")
