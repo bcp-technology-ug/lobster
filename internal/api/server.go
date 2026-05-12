@@ -57,6 +57,9 @@ type Services struct {
 	Planner      plansvc.Planner
 	Orchestrator stacksvc.Orchestrator
 	Validator    integrationsvc.AdapterValidator
+	// Notifier is called when an adapter's enabled state changes so in-process
+	// consumers (e.g. the runner's adapter registry) stay in sync with the DB.
+	Notifier integrationsvc.StateNotifier
 }
 
 // Server holds the running gRPC server and HTTP gateway mux.
@@ -113,7 +116,7 @@ func Build(st *store.Store, cfg Config, svc Services) (*Server, error) {
 	planS := plansvc.New(st, svc.Planner)
 	stackS := stacksvc.New(st, svc.Orchestrator)
 	adminS := adminsvc.New(st, cfg.Version, adminCfgFunc)
-	intS := integrationsvc.New(st, svc.Validator)
+	intS := integrationsvc.New(st, svc.Validator).WithNotifier(svc.Notifier)
 
 	runv1.RegisterRunServiceServer(grpcSrv, runS)
 	planv1.RegisterPlanServiceServer(grpcSrv, planS)

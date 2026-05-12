@@ -172,6 +172,23 @@ func persistPlan(
 			})
 		}
 	}
+
+	// Record an artifact envelope so GetPlan can expose a storage reference.
+	artifactID := newUUID()
+	storagePath := ".lobster/plans/" + plan.PlanId + ".pb"
+	schemaVersion := "v1"
+	mediaType := "application/vnd.lobster.execution-plan.v1+protobuf"
+	createdAtStr := nowStr
+	if err := q.UpsertPlanArtifact(ctx, planstore.UpsertPlanArtifactParams{
+		PlanID:                plan.PlanId,
+		ArtifactID:            artifactID,
+		StoragePath:           storagePath,
+		EnvelopeSchemaVersion: &schemaVersion,
+		EnvelopeMediaType:     &mediaType,
+		EnvelopeCreatedAt:     &createdAtStr,
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 

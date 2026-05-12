@@ -42,12 +42,24 @@ func New(st *store.Store, orch Orchestrator) *Service {
 	return &Service{store: st, orchestrator: orch}
 }
 
-// EnsureStack delegates to the orchestrator if present.
+// EnsureStack delegates to the orchestrator if present and persists the resulting
+// stack state so that GetStackStatus can reflect reality.
 func (s *Service) EnsureStack(ctx context.Context, req *stackv1.EnsureStackRequest) (*stackv1.EnsureStackResponse, error) {
 	if s.orchestrator == nil {
 		return nil, status.Error(codes.Unimplemented, "orchestrator not configured")
 	}
-	return s.orchestrator.EnsureStack(ctx, req)
+	resp, err := s.orchestrator.EnsureStack(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	// Persist stack state (best-effort; stack is up even if DB write fails).
+	if resp.Stack != nil {
+		if upsertErr := s.UpsertStack(ctx, resp.Stack); upsertErr != nil {
+			// Log but do not fail the caller — the stack itself is running.
+			_ = upsertErr
+		}
+	}
+	return resp, nil
 }
 
 // GetStackStatus returns the persisted stack state for a workspace.
@@ -78,12 +90,30 @@ func (s *Service) GetStackStatus(ctx context.Context, req *stackv1.GetStackStatu
 	return resp, nil
 }
 
-// TeardownStack delegates to the orchestrator if present.
+// TeardownStack delegates to the orchestrator if present and marks the stack
+// record as torn down so GetStackStatus reflects the new state.
 func (s *Service) TeardownStack(ctx context.Context, req *stackv1.TeardownStackRequest) (*stackv1.TeardownStackResponse, error) {
 	if s.orchestrator == nil {
 		return nil, status.Error(codes.Unimplemented, "orchestrator not configured")
 	}
-	return s.orchestrator.TeardownStack(ctx, req)
+	resp, err := s.orchestrator.TeardownStack(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	// Update persisted stack status to TEARDOWN (best-effort).
+	if existing, dbErr := s.store.Stack.GetStackByWorkspace(ctx, req.WorkspaceId); dbErr == nil {
+		now := convert.NowDB()
+		_ = s.store.Stack.UpsertStack(ctx, stackstore.UpsertStackParams{
+			StackID:     existing.StackID,
+			WorkspaceID: existing.WorkspaceID,
+			ProfileName: existing.ProfileName,
+			ProjectName: existing.ProjectName,
+			Status:      int64(stackv1.StackStatus_STACK_STATUS_TEARDOWN),
+			CreatedAt:   existing.CreatedAt,
+			UpdatedAt:   now,
+		})
+	}
+	return resp, nil
 }
 
 // GetStackLogs delegates to the orchestrator if present.

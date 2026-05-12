@@ -33,11 +33,15 @@ type Adapter interface {
 type Registry struct {
 	mu       sync.RWMutex
 	adapters map[string]Adapter
+	disabled map[string]bool
 }
 
 // NewRegistry creates an empty Registry.
 func NewRegistry() *Registry {
-	return &Registry{adapters: make(map[string]Adapter)}
+	return &Registry{
+		adapters: make(map[string]Adapter),
+		disabled: make(map[string]bool),
+	}
 }
 
 // Register adds an adapter to the registry. Returns an error if an adapter
@@ -60,13 +64,30 @@ func (r *Registry) Get(id string) (Adapter, bool) {
 	return a, ok
 }
 
-// All returns all registered adapters in arbitrary order.
+// Enable marks an adapter as enabled. No-op if the adapter is not registered.
+func (r *Registry) Enable(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.disabled, id)
+}
+
+// Disable marks an adapter as disabled. Disabled adapters are skipped by
+// SetupAll, ResetAll, and TeardownAll.
+func (r *Registry) Disable(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.disabled[id] = true
+}
+
+// All returns all enabled registered adapters in arbitrary order.
 func (r *Registry) All() []Adapter {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]Adapter, 0, len(r.adapters))
-	for _, a := range r.adapters {
-		out = append(out, a)
+	for id, a := range r.adapters {
+		if !r.disabled[id] {
+			out = append(out, a)
+		}
 	}
 	return out
 }

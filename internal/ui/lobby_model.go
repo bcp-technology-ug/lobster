@@ -119,8 +119,14 @@ func (m LobbyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// Reserve 7 lines for logo (2), tab bar (1), blanks (3), footer (1).
-		inner := tea.WindowSizeMsg{Width: m.width, Height: m.height - 7}
+		// JoinVertical chrome: blank(1) + logo + blank(1) + tabBar(1) + blank(1) + pane + blank(1) + footer(1).
+		// Logo is 1 line when no workspace is set, 2 lines when workspace is shown.
+		// Total chrome = 6 + logoLines, so inner height = terminal height - 6 - logoLines.
+		logoLines := 1
+		if m.workspace != "" {
+			logoLines = 2
+		}
+		inner := tea.WindowSizeMsg{Width: m.width, Height: m.height - 6 - logoLines}
 		// Propagate resize through each sub-model's Update so viewports/tables
 		// recalculate their internal dimensions correctly.
 		runsUpdated, _ := m.runs.Update(inner)

@@ -248,6 +248,7 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 						zap.String("scenario_id", sc.DeterministicID),
 						zap.Error(upsertErr))
 				}
+				r.persistStepDetail(ctx, runID, scenario, sc)
 			}
 
 			scEvt := scenarioResultEvent(runID, seq(), sc)
@@ -457,6 +458,7 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx cont
 	}
 
 	cancelled := false
+	asyncScenarioOrdinal := int64(0)
 	for _, feature := range features {
 		if cancelled {
 			break
@@ -512,6 +514,24 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest, ctx cont
 			// Quarantine: demote failed non-blocking quarantined scenarios to skipped.
 			if sc.Status == reports.StatusFailed && !cfg.QuarantineBlocking && scenarioIsQuarantined(scenario.Tags, cfg) {
 				sc.Status = reports.StatusSkipped
+			}
+			asyncScenarioOrdinal++
+			if r.store != nil {
+				featName := feature.Name
+				if upsertErr := r.store.Run.UpsertRunScenario(ctx, runstore.UpsertRunScenarioParams{
+					RunID:         runID,
+					ScenarioID:    sc.DeterministicID,
+					Ordinal:       asyncScenarioOrdinal,
+					Name:          sc.Name,
+					Status:        int64(reportsStatusToScenarioProto(sc.Status)),
+					DurationNanos: sc.Duration.Nanoseconds(),
+					FeatureName:   &featName,
+				}); upsertErr != nil {
+					logger.Warn("failed to persist scenario record",
+						zap.String("scenario_id", sc.DeterministicID),
+						zap.Error(upsertErr))
+				}
+				r.persistStepDetail(ctx, runID, scenario, sc)
 			}
 			runResult.Scenarios = append(runResult.Scenarios, sc)
 			if cfg.FailFast && sc.Status == reports.StatusFailed {
@@ -885,11 +905,17 @@ func scenarioResultEvent(runID string, seq uint64, sc *reports.ScenarioResult) *
 		Status:     reportsStatusToScenarioProto(sc.Status),
 		Duration:   durationpb.New(sc.Duration),
 	}
-	for _, step := range sc.Steps {
-		sr.StepResults = append(sr.StepResults, &runv1.StepResult{
+	for i, step := range sc.Steps {
+		stepID := fmt.Sprintf("%s:step:%d", sc.DeterministicID, i)
+		protoStep := &runv1.StepResult{
+			StepId:   stepID,
 			Status:   stepStatusToProto(step.Status),
 			Duration: durationpb.New(step.Duration),
-		})
+		}
+		if step.Err != nil {
+			protoStep.Error = status.New(grpccodes.Unknown, step.Err.Error()).Proto()
+		}
+		sr.StepResults = append(sr.StepResults, protoStep)
 	}
 	return &runv1.RunEvent{
 		Sequence:   seq,
@@ -941,5 +967,100 @@ func stepStatusToProto(s reports.Status) commonv1.StepStatus {
 		return commonv1.StepStatus_STEP_STATUS_SKIPPED
 	default:
 		return commonv1.StepStatus_STEP_STATUS_UNSPECIFIED
+	}
+}
+
+// persistStepDetail writes per-step records for a completed scenario to the
+// store. sc.Steps corresponds positionally to scenario.Steps (background steps
+// are not included here). Errors are swallowed — a DB blip must not surface as
+// a run failure.
+func (r *Runner) persistStepDetail(ctx context.Context, runID string, scenario *parser.Scenario, sc *reports.ScenarioResult) {
+	if r.store == nil {
+		return
+	}
+	q := r.store.Run
+	scenarioID := sc.DeterministicID
+
+	// Scenario tags.
+	for i, tag := range sc.Tags {
+		_ = q.CreateRunScenarioTag(ctx, runstore.CreateRunScenarioTagParams{
+			RunID:      runID,
+			ScenarioID: scenarioID,
+			Ordinal:    int64(i),
+			Tag:        tag,
+		})
+	}
+
+	// Step results.
+	for i, sr := range sc.Steps {
+		stepID := fmt.Sprintf("%s:step:%d", scenarioID, i)
+		var errMsg *string
+		if sr.Err != nil {
+			s := sr.Err.Error()
+			errMsg = &s
+		}
+		_ = q.UpsertRunStep(ctx, runstore.UpsertRunStepParams{
+			RunID:         runID,
+			ScenarioID:    scenarioID,
+			StepID:        stepID,
+			Ordinal:       int64(i),
+			Keyword:       sr.Keyword,
+			Text:          sr.Text,
+			Status:        int64(stepStatusToProto(sr.Status)),
+			DurationNanos: sr.Duration.Nanoseconds(),
+			ErrorMessage:  errMsg,
+		})
+
+		if i >= len(scenario.Steps) {
+			continue
+		}
+		// DocString.
+		if scenario.Steps[i].DocString != nil {
+			ds := scenario.Steps[i].DocString
+			var mt *string
+			if ds.MediaType != "" {
+				mt = &ds.MediaType
+			}
+			_ = q.UpsertRunStepDocString(ctx, runstore.UpsertRunStepDocStringParams{
+				RunID:       runID,
+				ScenarioID:  scenarioID,
+				StepID:      stepID,
+				ContentType: mt,
+				Content:     ds.Content,
+			})
+		}
+		// DataTable.
+		if scenario.Steps[i].DataTable != nil {
+			dt := scenario.Steps[i].DataTable
+			if len(dt.Rows) > 0 {
+				for col, h := range dt.Rows[0] {
+					_ = q.CreateRunStepDataTableHeader(ctx, runstore.CreateRunStepDataTableHeaderParams{
+						RunID:      runID,
+						ScenarioID: scenarioID,
+						StepID:     stepID,
+						Ordinal:    int64(col),
+						Value:      h,
+					})
+				}
+				for rowIdx, row := range dt.Rows[1:] {
+					_ = q.CreateRunStepDataTableRow(ctx, runstore.CreateRunStepDataTableRowParams{
+						RunID:      runID,
+						ScenarioID: scenarioID,
+						StepID:     stepID,
+						RowIndex:   int64(rowIdx),
+					})
+					for cellIdx, cell := range row {
+						_ = q.CreateRunStepDataTableCell(ctx, runstore.CreateRunStepDataTableCellParams{
+							RunID:      runID,
+							ScenarioID: scenarioID,
+							StepID:     stepID,
+							RowIndex:   int64(rowIdx),
+							CellIndex:  int64(cellIdx),
+							Value:      cell,
+						})
+					}
+				}
+			}
+		}
 	}
 }

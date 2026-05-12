@@ -24,18 +24,34 @@ type AdapterValidator interface {
 	Validate(ctx context.Context, adapterID string) (bool, error)
 }
 
+// StateNotifier is an optional interface that IntegrationService calls after a
+// state change so in-process consumers (e.g. the runner's adapter registry)
+// stay in sync with the DB.
+type StateNotifier interface {
+	Enable(id string)
+	Disable(id string)
+}
+
 // Service implements integrationsv1.IntegrationServiceServer.
 type Service struct {
 	integrationsv1.UnimplementedIntegrationServiceServer
 
 	store     *store.Store
 	validator AdapterValidator
+	notifier  StateNotifier
 }
 
 // New creates a Service. validator may be nil; ValidateIntegrationAdapter will
 // return Unimplemented until it is wired.
 func New(st *store.Store, validator AdapterValidator) *Service {
 	return &Service{store: st, validator: validator}
+}
+
+// WithNotifier attaches a StateNotifier that is called whenever an adapter's
+// enabled state changes. Returns the receiver for chaining.
+func (s *Service) WithNotifier(n StateNotifier) *Service {
+	s.notifier = n
+	return s
 }
 
 // ListIntegrationAdapters returns a paginated list of adapters.
@@ -138,6 +154,15 @@ func (s *Service) SetIntegrationAdapterState(ctx context.Context, req *integrati
 	}); err != nil {
 		// Non-fatal: event append failure should not block the state update.
 		_ = fmt.Errorf("append state event: %w", err)
+	}
+
+	// Notify in-process registry so it immediately honours the new state.
+	if s.notifier != nil {
+		if req.Enabled {
+			s.notifier.Enable(req.AdapterId)
+		} else {
+			s.notifier.Disable(req.AdapterId)
+		}
 	}
 
 	// Return updated adapter.

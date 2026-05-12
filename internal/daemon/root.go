@@ -30,6 +30,8 @@ import (
 	adminv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/admin"
 	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
 	configv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/config"
+	integrationsv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/integrations"
+	integrationstore "github.com/bcp-technology/lobster/gen/sqlc/integrations"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -189,6 +191,26 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 				if regErr := kcAdapter.RegisterSteps(reg); regErr != nil {
 					return fmt.Errorf("register keycloak steps: %w", regErr)
 				}
+				// Persist adapter record so the integrations API can list/get it.
+				now := time.Now().UTC().Format(time.RFC3339Nano)
+				if upsertErr := st.Integrations.UpsertIntegrationAdapter(ctx, integrationstore.UpsertIntegrationAdapterParams{
+					AdapterID: kcAdapter.ID(),
+					Name:      kcAdapter.ID(),
+					Type:      kcAdapter.Kind(),
+					State:     int64(integrationsv1.AdapterState_ADAPTER_STATE_READY),
+					UpdatedAt: now,
+				}); upsertErr != nil {
+					return fmt.Errorf("persist keycloak adapter: %w", upsertErr)
+				}
+				for _, cap := range []string{"auth", "user_management"} {
+					if upsertErr := st.Integrations.UpsertIntegrationAdapterCapability(ctx, integrationstore.UpsertIntegrationAdapterCapabilityParams{
+						AdapterID: kcAdapter.ID(),
+						Name:      cap,
+						Enabled:   1,
+					}); upsertErr != nil {
+						return fmt.Errorf("persist keycloak capability %q: %w", cap, upsertErr)
+					}
+				}
 			}
 			runnerImpl = runnerImpl.WithAdapterRegistry(intReg)
 
@@ -230,6 +252,7 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 				Planner:      plannerImpl,
 				Orchestrator: orch,
 				Validator:    integrations.NewValidator(intReg),
+				Notifier:     intReg,
 			})
 			if err != nil {
 				return fmt.Errorf("build API server: %w", err)

@@ -64,19 +64,6 @@ func NewRootCommand() *cobra.Command {
 	return root
 }
 
-// newComingSoonCommand returns a placeholder for unimplemented commands that
-// renders a styled banner instead of a plain error.
-func newComingSoonCommand(use, short string) *cobra.Command {
-	return &cobra.Command{
-		Use:   use,
-		Short: short,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, _ = fmt.Fprint(cmd.OutOrStdout(), ui.RenderComingSoon(use))
-			return nil
-		},
-	}
-}
-
 func addPersistenceFlags(fs *pflag.FlagSet) {
 	fs.String("workspace", "", "workspace selection for monorepo isolation")
 	fs.String("sqlite-path", "", "explicit SQLite path override")
