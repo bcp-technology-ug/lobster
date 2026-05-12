@@ -12,7 +12,8 @@ cover.out
 # Runtime/local project data
 # =========================
 .lobster/
-reports/
+# Ignore generated report output files at the repo root, but NOT internal/reports/ source
+/reports/
 
 # =========================
 # Logs and temp files
