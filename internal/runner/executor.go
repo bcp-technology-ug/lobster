@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
@@ -63,7 +64,10 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 		Profile:   req.Selector.ProfileName,
 		StartedAt: time.Now(),
 	}
-	reporter := reports.NewConsoleReporter(nil, true, false)
+	reporter := r.reporter
+	if reporter == nil {
+		reporter = reports.NewConsoleReporter(nil, true, false)
+	}
 	reporter.RunStarted(runResult)
 
 	// BeforeSuite hooks.
@@ -75,9 +79,25 @@ func (r *Runner) RunSync(ctx context.Context, req *runv1.RunSyncRequest, stream 
 
 	suiteVars := mergeMaps(cfg.Variables, req.Variables)
 
+	// Pre-compile optional scenario name regex.
+	var scenarioRegex *regexp.Regexp
+	if cfg.ScenarioRegex != "" {
+		var compileErr error
+		scenarioRegex, compileErr = regexp.Compile(cfg.ScenarioRegex)
+		if compileErr != nil {
+			return status.Errorf(codes.InvalidArgument, "invalid scenario regex: %v", compileErr)
+		}
+	}
+
 	for _, feature := range features {
 		for _, scenario := range feature.Scenarios {
 			if req.Selector.TagExpression != "" && !matchesTagExpression(scenario.Tags, req.Selector.TagExpression) {
+				continue
+			}
+			if scenarioRegex != nil && !scenarioRegex.MatchString(scenario.Name) {
+				continue
+			}
+			if len(cfg.ScenarioIDs) > 0 && !containsString(cfg.ScenarioIDs, scenario.DeterministicID) {
 				continue
 			}
 			sc := &reports.ScenarioResult{
@@ -231,6 +251,12 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest) {
 	suiteVars := mergeMaps(cfg.Variables, req.Variables)
 	reporter := reports.NewConsoleReporter(nil, false, false)
 
+	// Pre-compile optional scenario name regex.
+	var scenarioRegex *regexp.Regexp
+	if cfg.ScenarioRegex != "" {
+		scenarioRegex, _ = regexp.Compile(cfg.ScenarioRegex)
+	}
+
 	if r.hooks != nil {
 		if hookErr := r.hooks.RunBeforeSuite(ctx); hookErr != nil {
 			r.updateRunStatus(ctx, runID, commonv1.RunStatus_RUN_STATUS_FAILED)
@@ -241,6 +267,12 @@ func (r *Runner) executeAsync(runID string, req *runv1.RunAsyncRequest) {
 	for _, feature := range features {
 		for _, scenario := range feature.Scenarios {
 			if req.Selector.TagExpression != "" && !matchesTagExpression(scenario.Tags, req.Selector.TagExpression) {
+				continue
+			}
+			if scenarioRegex != nil && !scenarioRegex.MatchString(scenario.Name) {
+				continue
+			}
+			if len(cfg.ScenarioIDs) > 0 && !containsString(cfg.ScenarioIDs, scenario.DeterministicID) {
 				continue
 			}
 			sc := &reports.ScenarioResult{
@@ -487,6 +519,15 @@ func mergeMaps(base, override map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func containsString(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // --- RunEvent constructors ---

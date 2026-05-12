@@ -1,21 +1,31 @@
 package cli
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/bcp-technology/lobster/internal/config"
 	"github.com/bcp-technology/lobster/internal/store"
+	"github.com/bcp-technology/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+)
+
+// ExitError signals a non-zero exit without printing an additional error panel.
+// Use this when a command has already rendered its own diagnostic output.
+type ExitError struct{ Code int }
+
+func (e *ExitError) Error() string { return "" }
+
+// Exit code constants for differentiated failure categories.
+const (
+	ExitScenarioFailure = 1 // One or more scenarios failed.
+	ExitConfigError     = 2 // Invalid flags, config file, or validation error.
+	ExitOrchestration   = 3 // Stack orchestration (Docker Compose) error.
+	ExitRuntimeError    = 4 // Internal runner or infrastructure error.
 )
 
 // NewRootCommand builds the lobster CLI command tree.
@@ -26,6 +36,11 @@ func NewRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "lobster",
 		Short: "CLI-first end-to-end BDD runner",
+		Long: ui.StyleHeading.Render("lobster") + " — contract-driven BDD end-to-end testing\n\n" +
+			ui.StyleMuted.Render("Run feature scenarios against real infrastructure with full observability.\n") +
+			ui.StyleMuted.Render("Docs: https://github.com/bcp-technology/lobster"),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			return initViper(v, cfgFile)
 		},
@@ -35,101 +50,23 @@ func NewRootCommand() *cobra.Command {
 
 	root.AddCommand(newRunCommand(v))
 	root.AddCommand(newConfigCommand(v))
-	root.AddCommand(newNotImplementedCommand("init"))
-	root.AddCommand(newNotImplementedCommand("plan"))
-	root.AddCommand(newNotImplementedCommand("validate"))
-	root.AddCommand(newNotImplementedCommand("lint"))
+	root.AddCommand(newInitCommand(v))
+	root.AddCommand(newPlanCommand(v))
+	root.AddCommand(newValidateCommand(v))
+	root.AddCommand(newLintCommand(v))
 
 	return root
 }
 
-func newRunCommand(v *viper.Viper) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Execute scenarios against configured stack",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-			defer cancel()
-
-			storeCfg, err := buildStoreConfigFromInputs(cmd, v)
-			if err != nil {
-				return err
-			}
-
-			st, err := store.Open(ctx, storeCfg)
-			if err != nil {
-				return fmt.Errorf("initialize store: %w", err)
-			}
-			defer func() { _ = st.Close() }()
-
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "run bootstrap ready (sqlite=%s)\n", storeCfg.SQLitePath)
-			return nil
-		},
-	}
-
-	addPersistenceFlags(cmd.Flags())
-	return cmd
-}
-
-func newConfigCommand(v *viper.Viper) *cobra.Command {
-	var printJSON bool
-	var validate bool
-
-	cmd := &cobra.Command{
-		Use:   "config",
-		Short: "Inspect or validate effective configuration",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			storeCfg, err := buildStoreConfigFromInputs(cmd, v)
-			if err != nil {
-				return err
-			}
-
-			if printJSON {
-				payload, err := json.MarshalIndent(map[string]any{
-					"workspace":      valueString(cmd, v, "workspace.selected", "workspace"),
-					"sqlite_path":    storeCfg.SQLitePath,
-					"migrations_dir": storeCfg.MigrationsDir,
-					"migration_mode": valueString(cmd, v, "compose.migrations.mode", "migration-mode"),
-					"journal_mode":   storeCfg.JournalMode,
-					"synchronous":    storeCfg.Synchronous,
-					"busy_timeout":   storeCfg.BusyTimeout.String(),
-				}, "", "  ")
-				if err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(payload))
-			}
-
-			if validate {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				st, err := store.Open(ctx, storeCfg)
-				if err != nil {
-					return fmt.Errorf("validate persistence config: %w", err)
-				}
-				defer func() { _ = st.Close() }()
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "configuration validation ok")
-			}
-
-			if !printJSON && !validate {
-				return errors.New("no action requested; use --print or --validate")
-			}
-			return nil
-		},
-	}
-
-	cmd.Flags().BoolVar(&printJSON, "print", false, "print effective configuration as JSON")
-	cmd.Flags().BoolVar(&validate, "validate", false, "validate effective configuration and persistence wiring")
-	addPersistenceFlags(cmd.Flags())
-	return cmd
-}
-
-func newNotImplementedCommand(use string) *cobra.Command {
+// newComingSoonCommand returns a placeholder for unimplemented commands that
+// renders a styled banner instead of a plain error.
+func newComingSoonCommand(use, short string) *cobra.Command {
 	return &cobra.Command{
 		Use:   use,
-		Short: "Reserved command surface",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fmt.Errorf("%s command is not implemented yet", use)
+		Short: short,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), ui.RenderComingSoon(use))
+			return nil
 		},
 	}
 }

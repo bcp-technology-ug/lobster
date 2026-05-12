@@ -10,6 +10,7 @@ import (
 	"time"
 
 	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
+	"github.com/bcp-technology/lobster/internal/reports"
 	"github.com/bcp-technology/lobster/internal/steps"
 	"github.com/bcp-technology/lobster/internal/store"
 )
@@ -42,6 +43,14 @@ type RunConfig struct {
 
 	// KeepStack prevents stack teardown after the run completes.
 	KeepStack bool
+
+	// ScenarioRegex, when non-empty, restricts execution to scenarios whose
+	// name matches the regular expression.
+	ScenarioRegex string
+
+	// ScenarioIDs, when non-empty, restricts execution to scenarios with a
+	// matching DeterministicID. Populated by --from-plan.
+	ScenarioIDs []string
 }
 
 // ConfigProvider resolves runtime configuration for a workspace and profile.
@@ -62,6 +71,7 @@ type Runner struct {
 	registry     *steps.Registry
 	store        *store.Store
 	hooks        *steps.HookRegistry // may be nil; hooks are skipped when nil
+	reporter     reports.Reporter    // may be nil; falls back to ConsoleReporter when nil
 }
 
 // New creates a Runner. orchestrator may be nil.
@@ -78,6 +88,14 @@ func New(cfgFn ConfigProvider, orch Orchestrator, reg *steps.Registry, st *store
 // Call before first use.
 func (r *Runner) WithHooks(h *steps.HookRegistry) *Runner {
 	r.hooks = h
+	return r
+}
+
+// WithReporter injects a custom Reporter into the Runner.
+// When set, it replaces the default ConsoleReporter inside RunSync / RunAsync.
+// Call before first use.
+func (r *Runner) WithReporter(rep reports.Reporter) *Runner {
+	r.reporter = rep
 	return r
 }
 

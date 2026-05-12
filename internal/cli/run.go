@@ -1,0 +1,577 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
+	configv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/config"
+	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology/lobster/internal/orchestration"
+	"github.com/bcp-technology/lobster/internal/reports"
+	"github.com/bcp-technology/lobster/internal/runner"
+	"github.com/bcp-technology/lobster/internal/steps"
+	"github.com/bcp-technology/lobster/internal/steps/builtin"
+	"github.com/bcp-technology/lobster/internal/store"
+	"github.com/bcp-technology/lobster/internal/ui"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
+)
+
+// newRunCommand creates the `lobster run` command with full runner wiring.
+func newRunCommand(v *viper.Viper) *cobra.Command {
+	var verbosity int
+
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Execute scenarios against configured stack",
+		Long:  "Execute all matched scenarios against the configured Docker Compose stack.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runCommand(cmd, v, verbosity)
+		},
+	}
+
+	// Feature selection.
+	cmd.Flags().String("features", "", "feature file glob pattern (e.g. features/**/*.feature)")
+	cmd.Flags().StringSlice("tags", nil, "tag filter expression (e.g. @smoke)")
+	cmd.Flags().String("scenario-regex", "", "run only scenarios whose name matches this regex")
+	cmd.Flags().String("from-plan", "", "execute from a saved plan artifact (path to plan JSON file)")
+
+	// Infrastructure.
+	cmd.Flags().StringSlice("compose", nil, "docker-compose file(s)")
+	cmd.Flags().StringSlice("compose-profile", nil, "compose profile(s) to activate")
+
+	// Execution options.
+	cmd.Flags().Bool("fail-fast", false, "stop after first scenario failure")
+	cmd.Flags().Bool("soft-assert", false, "collect all assertion failures instead of stopping on first")
+	cmd.Flags().Bool("keep-stack", false, "skip infrastructure teardown after run")
+	cmd.Flags().Duration("timeout", 0, "maximum overall run duration (e.g. 10m)")
+	cmd.Flags().Duration("step-timeout", 0, "maximum duration per step (e.g. 30s)")
+	cmd.Flags().StringArray("env", nil, "variable override KEY=VALUE (repeatable)")
+
+	// Output / verbosity.
+	cmd.Flags().Bool("ci", false, "force non-interactive CI output (plain text)")
+	cmd.Flags().CountVarP(&verbosity, "verbose", "v", "increase output verbosity: -v info, -vv debug, -vvv trace")
+	cmd.Flags().String("report-json", "", "write JSON report to path")
+	cmd.Flags().String("report-junit", "", "write JUnit XML report to path")
+
+	// Run mode.
+	cmd.Flags().String("run-mode", "sync", "execution mode: sync|async (async requires daemon)")
+
+	// Executor mode and daemon connection.
+	cmd.Flags().String("executor-mode", "local", "executor target: local|daemon")
+	cmd.PersistentFlags().String("executor-addr", "", "daemon gRPC address (e.g. dns:///lobsterd:9443)")
+	cmd.PersistentFlags().String("auth-token", "", "bearer token for daemon authentication")
+	cmd.PersistentFlags().String("tls-ca-file", "", "CA certificate file for daemon TLS")
+	cmd.PersistentFlags().String("tls-cert-file", "", "client certificate file for daemon mTLS")
+	cmd.PersistentFlags().String("tls-key-file", "", "client key file for daemon mTLS")
+
+	// Persistence.
+	addPersistenceFlags(cmd.Flags())
+
+	// Sub-commands for async run lifecycle.
+	cmd.AddCommand(newRunWatchCommand(v))
+	cmd.AddCommand(newRunStatusCommand(v))
+	cmd.AddCommand(newRunCancelCommand(v))
+
+	return cmd
+}
+
+// runCommand is the core implementation of `lobster run`.
+func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// ── feature paths ──────────────────────────────────────────────────────
+	featureFlag, _ := cmd.Flags().GetString("features")
+	featuresCfg := v.GetStringSlice("features.paths")
+	if featureFlag != "" {
+		featuresCfg = []string{featureFlag}
+	}
+	if len(featuresCfg) == 0 {
+		featuresCfg = []string{"features/**/*.feature"}
+	}
+
+	// ── from-plan: override feature paths and add scenario ID filter ────────
+	fromPlan, _ := cmd.Flags().GetString("from-plan")
+	var planScenarioIDs []string
+	if fromPlan != "" {
+		p, err := loadPlanFile(fromPlan)
+		if err != nil {
+			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Invalid plan file", err.Error(),
+				"Provide a path to a file saved with 'lobster plan --out <file>'", ""))
+			return &ExitError{Code: ExitConfigError}
+		}
+		if p.FeaturePath != "" {
+			featuresCfg = []string{p.FeaturePath}
+		}
+		planScenarioIDs = p.ScenarioIDs
+	}
+
+	// ── tags ────────────────────────────────────────────────────────────────
+	tags, _ := cmd.Flags().GetStringSlice("tags")
+	tagExpr := strings.Join(tags, ",")
+	if tagExpr == "" {
+		tagExpr = v.GetString("runner.tags")
+	}
+
+	// ── scenario regex ──────────────────────────────────────────────────────
+	scenarioRegex, _ := cmd.Flags().GetString("scenario-regex")
+
+	// ── env overrides ───────────────────────────────────────────────────────
+	envList, _ := cmd.Flags().GetStringArray("env")
+	envMap := make(map[string]string, len(envList))
+	for _, e := range envList {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) != 2 {
+			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Invalid --env value",
+				fmt.Sprintf("%q is not in KEY=VALUE format", e),
+				"Example: --env BASE_URL=http://localhost:8080", ""))
+			return &ExitError{Code: ExitConfigError}
+		}
+		envMap[parts[0]] = parts[1]
+	}
+
+	// ── execution flags ─────────────────────────────────────────────────────
+	failFast, _ := cmd.Flags().GetBool("fail-fast")
+	softAssert, _ := cmd.Flags().GetBool("soft-assert")
+	keepStack, _ := cmd.Flags().GetBool("keep-stack")
+	ciMode, _ := cmd.Flags().GetBool("ci")
+	runMode, _ := cmd.Flags().GetString("run-mode")
+	executorMode, _ := cmd.Flags().GetString("executor-mode")
+	executorAddr, _ := cmd.Flags().GetString("executor-addr")
+	authToken, _ := cmd.Flags().GetString("auth-token")
+	tlsCA, _ := cmd.Flags().GetString("tls-ca-file")
+	tlsCert, _ := cmd.Flags().GetString("tls-cert-file")
+	tlsKey, _ := cmd.Flags().GetString("tls-key-file")
+
+	if !cmd.Flags().Changed("fail-fast") && v.IsSet("runner.fail_fast") {
+		failFast = v.GetBool("runner.fail_fast")
+	}
+	if !cmd.Flags().Changed("soft-assert") && v.IsSet("runner.soft_assert") {
+		softAssert = v.GetBool("runner.soft_assert")
+	}
+	if !cmd.Flags().Changed("keep-stack") && v.IsSet("runner.keep_stack") {
+		keepStack = v.GetBool("runner.keep_stack")
+	}
+
+	// ── timeouts ────────────────────────────────────────────────────────────
+	runTimeout, _ := cmd.Flags().GetDuration("timeout")
+	stepTimeout, _ := cmd.Flags().GetDuration("step-timeout")
+	if runTimeout == 0 {
+		runTimeout = v.GetDuration("runner.run_timeout")
+	}
+	if stepTimeout == 0 {
+		stepTimeout = v.GetDuration("runner.step_timeout")
+	}
+	if runTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, runTimeout)
+		defer cancel()
+	}
+
+	// ── report paths ────────────────────────────────────────────────────────
+	reportJSON, _ := cmd.Flags().GetString("report-json")
+	reportJUnit, _ := cmd.Flags().GetString("report-junit")
+
+	// ── run request ─────────────────────────────────────────────────────────
+	req := &runv1.RunSyncRequest{
+		Selector: &runv1.RunSelector{
+			TagExpression: tagExpr,
+		},
+		Execution: &configv1.ExecutionConfig{
+			FailFast:   failFast,
+			SoftAssert: softAssert,
+			KeepStack:  keepStack,
+		},
+	}
+	if len(featuresCfg) == 1 {
+		req.Selector.FeaturePath = featuresCfg[0]
+	}
+	if stepTimeout > 0 {
+		req.Execution.StepTimeout = durationpb.New(stepTimeout)
+	}
+
+	// ── validate run-mode / executor-mode combination ────────────────────────
+	if runMode == "async" && executorMode != "daemon" {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Invalid flag combination",
+			"--run-mode async requires --executor-mode daemon",
+			"Start the lobsterd daemon and set --executor-addr, then retry.", ""))
+		return &ExitError{Code: ExitConfigError}
+	}
+
+	// ── daemon execution path ─────────────────────────────────────────────
+	if executorMode == "daemon" {
+		if executorAddr == "" {
+			executorAddr = v.GetString("daemon.addr")
+		}
+		if executorAddr == "" {
+			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Missing daemon address",
+				"--executor-addr is required when --executor-mode daemon is set",
+				"Example: --executor-addr dns:///lobsterd:9443", ""))
+			return &ExitError{Code: ExitConfigError}
+		}
+
+		conn, err := dialDaemon(ctx, executorAddr, authToken, tlsCA, tlsCert, tlsKey)
+		if err != nil {
+			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Daemon connection failed", err.Error(),
+				"Check --executor-addr and TLS/auth flags.", ""))
+			return &ExitError{Code: ExitOrchestration}
+		}
+		defer conn.Close()
+
+		client := runv1.NewRunServiceClient(conn)
+
+		if runMode == "async" {
+			return runWithDaemonAsync(ctx, client, req, cmd)
+		}
+		return runWithDaemonSync(ctx, client, req, reportJSON, reportJUnit, cmd)
+	}
+
+	// ── local execution path ─────────────────────────────────────────────
+
+	// Config provider merges viper config, then applies --env overrides.
+	baseURL := v.GetString("http.base_url")
+	configVariables := v.GetStringMapString("variables")
+	configFn := func(_ context.Context, _, _ string) (*runner.RunConfig, error) {
+		vars := make(map[string]string, len(configVariables)+len(envMap))
+		for k, val := range configVariables {
+			vars[k] = val
+		}
+		for k, val := range envMap {
+			vars[k] = val
+		}
+		return &runner.RunConfig{
+			BaseURL:       baseURL,
+			FeaturePaths:  featuresCfg,
+			Variables:     vars,
+			FailFast:      failFast,
+			SoftAssert:    softAssert,
+			KeepStack:     keepStack,
+			StepTimeout:   stepTimeout,
+			ScenarioRegex: scenarioRegex,
+			ScenarioIDs:   planScenarioIDs,
+		}, nil
+	}
+
+	// Orchestrator.
+	var orch runner.Orchestrator
+	composePaths, _ := cmd.Flags().GetStringSlice("compose")
+	composeProfiles, _ := cmd.Flags().GetStringSlice("compose-profile")
+	if len(composePaths) == 0 {
+		composePaths = v.GetStringSlice("compose.files")
+	}
+	if len(composePaths) > 0 {
+		orchSetup := &orchestration.Setup{
+			ComposeFiles: composePaths,
+			Profiles:     composeProfiles,
+		}
+		orchInstance, err := orchestration.New("", func(_ context.Context, _, _ string) (*orchestration.Setup, error) {
+			return orchSetup, nil
+		})
+		if err != nil {
+			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Orchestration error",
+				fmt.Sprintf("create docker orchestrator: %v", err), "", ""))
+			return &ExitError{Code: ExitOrchestration}
+		}
+		orch = orchInstance
+	}
+
+	// Store.
+	storeConfig, err := buildStoreConfigFromInputs(cmd, v)
+	if err != nil {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Configuration error", err.Error(), "", ""))
+		return &ExitError{Code: ExitConfigError}
+	}
+	var st *store.Store
+	if storeConfig.SQLitePath != "" {
+		st, err = store.Open(ctx, storeConfig)
+		if err != nil {
+			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Store error",
+				fmt.Sprintf("open store: %v", err), "", ""))
+			return &ExitError{Code: ExitRuntimeError}
+		}
+		defer st.Close()
+	}
+
+	// Step registry.
+	reg := steps.NewRegistry()
+	if err := builtin.Register(reg); err != nil {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Internal error",
+			fmt.Sprintf("register builtin steps: %v", err), "", ""))
+		return &ExitError{Code: ExitRuntimeError}
+	}
+
+	r := runner.New(configFn, orch, reg, st)
+
+	// Side-car reporters (JSON, JUnit) + capture reporter for undefined steps.
+	var extraReporters []reports.Reporter
+	if reportJSON != "" {
+		extraReporters = append(extraReporters, reports.NewJSONReporter(reportJSON))
+	}
+	if reportJUnit != "" {
+		extraReporters = append(extraReporters, reports.NewJUnitReporter(reportJUnit))
+	}
+	capture := &ui.CaptureReporter{}
+	extraReporters = append(extraReporters, capture)
+
+	// Choose TUI or console.
+	interactive := ui.IsInteractive() && !ciMode
+	var runErr error
+	if interactive {
+		runErr = runWithTUI(ctx, r, req, extraReporters, verbosity, cmd)
+	} else {
+		runErr = runWithConsole(ctx, r, req, extraReporters, verbosity, cmd)
+	}
+
+	// Print undefined steps summary.
+	if capture.Result != nil {
+		printUndefinedStepsSummary(cmd, capture.Result)
+	}
+
+	return runErr
+}
+
+// runWithTUI runs the test suite with a Bubbletea live-updating TUI.
+func runWithTUI(
+	ctx context.Context,
+	r *runner.Runner,
+	req *runv1.RunSyncRequest,
+	extra []reports.Reporter,
+	_ int,
+	cmd *cobra.Command,
+) error {
+	model := ui.NewRunModel()
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx))
+
+	tuiReporter := ui.NewTUIReporter(p)
+
+	allReporters := []reports.Reporter{tuiReporter}
+	allReporters = append(allReporters, extra...)
+	r = r.WithReporter(reports.NewMultiReporter(allReporters...))
+
+	runErrCh := make(chan error, 1)
+	go func() {
+		stream := &noopStream{ctx: ctx}
+		err := r.RunSync(ctx, req, stream)
+		runErrCh <- err
+		if err != nil {
+			p.Send(ui.RunnerErrMsg{Err: err})
+		}
+	}()
+
+	finalModel, tuiErr := p.Run()
+	if tuiErr != nil {
+		return tuiErr
+	}
+
+	runErr := <-runErrCh
+	if runErr != nil {
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), ui.RenderError("Run failed",
+			runErr.Error(), "", ""))
+		return &ExitError{Code: exitCodeForRunError(runErr)}
+	}
+
+	if fm, ok := finalModel.(ui.RunModel); ok {
+		if s := fm.Summary(); s != nil && s.Failed > 0 {
+			return &ExitError{Code: ExitScenarioFailure}
+		}
+	}
+	return nil
+}
+
+// runWithConsole runs the test suite with plain console output (CI / non-TTY).
+func runWithConsole(
+	ctx context.Context,
+	r *runner.Runner,
+	req *runv1.RunSyncRequest,
+	extra []reports.Reporter,
+	verbosity int,
+	cmd *cobra.Command,
+) error {
+	consoleReporter := reports.NewConsoleReporter(cmd.OutOrStdout(), verbosity >= 1, true)
+
+	allReporters := []reports.Reporter{consoleReporter}
+	allReporters = append(allReporters, extra...)
+	r = r.WithReporter(reports.NewMultiReporter(allReporters...))
+
+	stream := &noopStream{ctx: ctx}
+	if err := r.RunSync(ctx, req, stream); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, ui.RenderError("Run failed", err.Error(), "", ""))
+		return &ExitError{Code: exitCodeForRunError(err)}
+	}
+	return nil
+}
+
+// runWithDaemonSync streams RunSync events from the daemon and renders them.
+func runWithDaemonSync(
+	ctx context.Context,
+	client runv1.RunServiceClient,
+	req *runv1.RunSyncRequest,
+	_, _ string, // reportJSONPath, reportJUnitPath reserved
+	cmd *cobra.Command,
+) error {
+	stream, err := client.RunSync(ctx, req)
+	if err != nil {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Daemon run failed",
+			err.Error(), "", ""))
+		return &ExitError{Code: exitCodeForRunError(err)}
+	}
+
+	var failed bool
+	for {
+		ev, recvErr := stream.Recv()
+		if recvErr != nil {
+			break
+		}
+		switch p := ev.GetPayload().(type) {
+		case *runv1.RunEvent_RunStatus:
+			if p.RunStatus == commonv1.RunStatus_RUN_STATUS_RUNNING {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(),
+					ui.StyleMuted.Render("▶  run started  ["+ev.GetRunId()+"]"))
+			}
+		case *runv1.RunEvent_ScenarioResult:
+			sc := p.ScenarioResult
+			if sc.GetStatus() == commonv1.ScenarioStatus_SCENARIO_STATUS_FAILED {
+				failed = true
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(),
+					ui.StyleError.Render(ui.IconCross+" "+sc.GetScenarioId()))
+			} else {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(),
+					ui.StyleSuccess.Render(ui.IconCheck+" "+sc.GetScenarioId()))
+			}
+		case *runv1.RunEvent_Summary:
+			s := p.Summary
+			line := fmt.Sprintf("total=%d  passed=%d  failed=%d  skipped=%d",
+				s.GetTotalScenarios(), s.GetPassedScenarios(),
+				s.GetFailedScenarios(), s.GetSkippedScenarios())
+			if s.GetFailedScenarios() > 0 {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), ui.StyleError.Render(ui.IconCross+"  "+line))
+			} else {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), ui.StyleSuccess.Render(ui.IconCheck+"  "+line))
+			}
+		}
+		if ev.GetTerminal() {
+			break
+		}
+	}
+
+	if failed {
+		return &ExitError{Code: ExitScenarioFailure}
+	}
+	return nil
+}
+
+// runWithDaemonAsync submits an async run and prints the run ID.
+func runWithDaemonAsync(
+	ctx context.Context,
+	client runv1.RunServiceClient,
+	req *runv1.RunSyncRequest,
+	cmd *cobra.Command,
+) error {
+	asyncReq := &runv1.RunAsyncRequest{
+		Selector:  req.Selector,
+		Execution: req.Execution,
+	}
+	resp, err := client.RunAsync(ctx, asyncReq)
+	if err != nil {
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Daemon async run failed",
+			err.Error(), "", ""))
+		return &ExitError{Code: exitCodeForRunError(err)}
+	}
+	_, _ = fmt.Fprint(cmd.OutOrStdout(),
+		ui.RenderSuccess("Run submitted", "Run ID: "+resp.GetRunId()))
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(),
+		ui.StyleMuted.Render("Use 'lobster run watch --run-id "+resp.GetRunId()+"' to follow progress."))
+	return nil
+}
+
+// exitCodeForRunError maps a gRPC status error to a differentiated exit code.
+func exitCodeForRunError(err error) int {
+	if err == nil {
+		return ExitScenarioFailure
+	}
+	st, ok := grpcstatus.FromError(err)
+	if !ok {
+		return ExitRuntimeError
+	}
+	switch st.Code() {
+	case codes.InvalidArgument:
+		return ExitConfigError
+	case codes.Internal:
+		msg := st.Message()
+		if strings.Contains(msg, "ensure stack") || strings.Contains(msg, "docker") {
+			return ExitOrchestration
+		}
+		return ExitRuntimeError
+	default:
+		return ExitRuntimeError
+	}
+}
+
+// printUndefinedStepsSummary prints a grouped list of unique undefined steps.
+func printUndefinedStepsSummary(cmd *cobra.Command, r *reports.RunResult) {
+	type stepKey struct{ keyword, text string }
+	seen := make(map[stepKey]struct{})
+	var undefs []stepKey
+
+	for _, sc := range r.Scenarios {
+		for _, sr := range sc.Steps {
+			if sr.Status == reports.StatusUndefined {
+				k := stepKey{keyword: sr.Keyword, text: sr.Text}
+				if _, ok := seen[k]; !ok {
+					seen[k] = struct{}{}
+					undefs = append(undefs, k)
+				}
+			}
+		}
+	}
+	if len(undefs) == 0 {
+		return
+	}
+
+	rows := make([][2]string, 0, len(undefs))
+	for _, u := range undefs {
+		rows = append(rows, [2]string{
+			ui.StyleWarning.Render(ui.IconWarning + " undefined"),
+			ui.StyleCode.Render(u.keyword + u.text),
+		})
+	}
+	_, _ = fmt.Fprint(cmd.OutOrStdout(), "\n")
+	_, _ = fmt.Fprint(cmd.OutOrStdout(),
+		ui.RenderKeyValueTable(fmt.Sprintf("Undefined steps (%d)", len(undefs)), rows))
+}
+
+// ── plan file ──────────────────────────────────────────────────────────────
+
+// planFile is the JSON schema written by `lobster plan --out`.
+type planFile struct {
+	PlanID      string   `json:"plan_id,omitempty"`
+	FeaturePath string   `json:"feature_path,omitempty"`
+	ScenarioIDs []string `json:"scenario_ids,omitempty"`
+}
+
+func loadPlanFile(path string) (*planFile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %q: %w", path, err)
+	}
+	var p planFile
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, fmt.Errorf("parse plan JSON: %w", err)
+	}
+	return &p, nil
+}
+
+// keep time import used
+var _ = time.Second
