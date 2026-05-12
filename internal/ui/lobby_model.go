@@ -111,12 +111,16 @@ func (m LobbyModel) loadAdminCmd() tea.Cmd {
 	}
 }
 
+// tuiTabNumbers holds circled Unicode digit glyphs for each tab label.
+var tuiTabNumbers = []string{"①", "②", "③", "④"}
+
 func (m LobbyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		inner := tea.WindowSizeMsg{Width: m.width, Height: m.height - 3}
+		// Reserve 7 lines for logo (2), tab bar (1), blanks (3), footer (1).
+		inner := tea.WindowSizeMsg{Width: m.width, Height: m.height - 7}
 		// Propagate resize through each sub-model's Update so viewports/tables
 		// recalculate their internal dimensions correctly.
 		runsUpdated, _ := m.runs.Update(inner)
@@ -193,55 +197,96 @@ func (m LobbyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m LobbyModel) View() string {
-	var b strings.Builder
+	// ── Logo ──────────────────────────────────────────────────────────────
+	logoLine := TUILogoStyle.Render("🦞  lobster")
+	if m.workspace != "" {
+		logoLine += "\n" + StyleMuted.Render("workspace: "+m.workspace)
+	}
+	logoRow := TUICenter(m.width, logoLine)
 
-	// Tab bar.
-	b.WriteString(m.renderTabBar())
-	b.WriteString("\n")
+	// ── Tab bar ─────────────────────────────────────────────────────────
+	tabRow := TUICenter(m.width, m.renderTabBar())
 
-	// Active pane content.
+	// ── Active pane ─────────────────────────────────────────────────────
+	pane := m.activePane()
+
+	// ── Footer ──────────────────────────────────────────────────────────
+	footerRow := TUICenter(m.width, m.renderFooter())
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		"",
+		logoRow,
+		"",
+		tabRow,
+		"",
+		pane,
+		"",
+		footerRow,
+	)
+}
+
+func (m LobbyModel) activePane() string {
 	switch m.tab {
 	case TabRuns:
-		b.WriteString(m.runs.View())
+		return m.runs.View()
 	case TabPlans:
-		b.WriteString(m.plans.View())
+		return m.plans.View()
 	case TabStack:
-		b.WriteString(m.stack.View())
+		return m.stack.View()
 	case TabAdmin:
-		b.WriteString(m.adminView())
+		return m.adminView()
 	}
-
-	return b.String()
+	return ""
 }
 
 func (m LobbyModel) renderTabBar() string {
-	var parts []string
+	var pills []string
 	for i := LobbyTab(0); i < tabCount; i++ {
-		label := fmt.Sprintf(" %s ", tabNames[i])
+		label := tuiTabNumbers[i] + "  " + tabNames[i]
 		if i == m.tab {
-			parts = append(parts, lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("#FFFFFF")).
-				Background(colorPrimary).
-				Padding(0, 1).
-				Render(label))
+			pills = append(pills, TUITabActive.Render(label))
 		} else {
-			parts = append(parts, lipgloss.NewStyle().
-				Foreground(colorMuted).
-				Padding(0, 1).
-				Render(label))
+			pills = append(pills, TUITabInactive.Render(label))
 		}
 	}
-	help := StyleMuted.Render("  [tab/1-4] switch tab  [ctrl+c] quit")
-	return strings.Join(parts, " ") + help
+	return strings.Join(pills, "  ")
+}
+
+func (m LobbyModel) renderFooter() string {
+	sep := StyleMuted.Render("  ·  ")
+	return strings.Join([]string{
+		renderKeyHint("tab / shift+tab", "switch"),
+		renderKeyHint("1–4", "jump"),
+		renderKeyHint("r", "refresh"),
+		renderKeyHint("ctrl+c", "quit"),
+	}, sep)
+}
+
+// cardWidth returns the outer width of the centered content card.
+func (m LobbyModel) cardWidth() int {
+	w := m.width - 6
+	if w > 128 {
+		w = 128
+	}
+	if w < 60 {
+		w = 60
+	}
+	return w
 }
 
 func (m LobbyModel) adminView() string {
-	if m.admin.err != nil {
-		return StyleError.Render("  "+m.admin.err.Error()) + "\n"
+	var body string
+	switch {
+	case m.admin.err != nil:
+		body = StyleError.Render(m.admin.err.Error())
+	case !m.admin.loaded:
+		body = StyleMuted.Render("Loading…")
+	default:
+		body = m.admin.content
 	}
-	if !m.admin.loaded {
-		return StyleMuted.Render("  Loading admin info…") + "\n"
-	}
-	return m.admin.content
+	cw := m.cardWidth()
+	card := TUICardStyle.Width(cw - 6).Render(
+		TUICardHeaderStyle.Render("Admin") + "\n\n" + body,
+	)
+	return TUICenter(m.width, card)
 }

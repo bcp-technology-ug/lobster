@@ -112,8 +112,8 @@ func (m PlansListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width = msg.Width
 			m.height = msg.Height
 			if m.detail.ready {
-				m.detail.viewport.Width = msg.Width
-				m.detail.viewport.Height = msg.Height - 4
+				m.detail.viewport.Width = m.cardWidth() - 10
+				m.detail.viewport.Height = m.height - 12
 			}
 		}
 		if m.detail.ready {
@@ -128,7 +128,21 @@ func (m PlansListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.table.SetHeight(m.height - 6)
+		cw := m.cardWidth()
+		tableInner := cw - 6
+		wsWidth := tableInner - 57
+		if wsWidth < 8 {
+			wsWidth = 8
+		}
+		m.table.SetColumns([]table.Column{
+			{Title: "ID", Width: 8},
+			{Title: "Workspace", Width: wsWidth},
+			{Title: "Profile", Width: 12},
+			{Title: "Scenarios", Width: 9},
+			{Title: "Est. Duration", Width: 12},
+			{Title: "Created", Width: 16},
+		})
+		m.table.SetHeight(max(3, m.height-10))
 
 	case tea.KeyMsg:
 		if m.filtering {
@@ -182,7 +196,7 @@ func (m PlansListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			return m, nil
 		}
-		vp := viewport.New(m.width, m.height-4)
+		vp := viewport.New(m.cardWidth()-10, max(3, m.height-12))
 		vp.SetContent(buildPlanContent(msg.plan))
 		m.detail = &planDetailModel{plan: msg.plan, viewport: vp, ready: true}
 		return m, nil
@@ -222,7 +236,7 @@ func (m *PlansListModel) applyFilter() {
 		}
 		created := ""
 		if ts := p.GetCreatedAt(); ts != nil {
-			created = ts.AsTime().Format("2006-01-02 15:04:05")
+			created = ts.AsTime().Format("01/02 15:04")
 		}
 		row := table.Row{idShort, workspace, profile, scenarios, dur, created}
 		if filterText == "" ||
@@ -236,23 +250,51 @@ func (m *PlansListModel) applyFilter() {
 
 func (m PlansListModel) View() string {
 	if m.detail != nil {
-		header := StyleHeading.Render("Plan Detail  "+shortID(m.detail.plan.GetPlanId())) +
+		header := TUICardHeaderStyle.Render("Plan  "+shortID(m.detail.plan.GetPlanId())) +
 			"  " + StyleMuted.Render(m.detail.plan.GetPlanId())
-		footer := StyleMuted.Render("[↑/↓] scroll  [b] back  [q] quit")
-		return header + "\n" + m.detail.viewport.View() + "\n" + footer
+		hints := renderKeyHint("↑/↓", "scroll") + "   " + renderKeyHint("b", "back")
+		content := header + "\n\n" + m.detail.viewport.View() + "\n\n" + StyleMuted.Render(hints)
+		cw := m.cardWidth()
+		card := TUICardStyle.Width(cw - 6).Render(content)
+		return TUICenter(m.width, card)
 	}
 
-	var b strings.Builder
-	b.WriteString(StyleHeading.Render("Execution Plans") + "\n")
-	if m.err != nil {
-		b.WriteString(StyleError.Render("  "+m.err.Error()) + "\n")
+	title := TUICardHeaderStyle.Render("Execution Plans")
+	var infoLine string
+	switch {
+	case m.loading:
+		infoLine = "\n" + StyleMuted.Render("  loading…")
+	case m.err != nil:
+		infoLine = "\n" + StyleError.Render("  "+m.err.Error())
+	case m.filtering:
+		infoLine = "\n" + StyleMuted.Render("  filter: ") + m.filter.View()
 	}
-	if m.filtering {
-		b.WriteString("  Filter: " + m.filter.View() + "\n")
+
+	hints := []string{
+		renderKeyHint("↵", "detail"),
+		renderKeyHint("/", "filter"),
+		renderKeyHint("r", "refresh"),
 	}
-	b.WriteString(m.table.View() + "\n\n")
-	b.WriteString(StyleMuted.Render("[enter] detail  [/] filter  [r] refresh  [→] next page  [q] quit") + "\n")
-	return b.String()
+	if m.nextToken != "" {
+		hints = append(hints, renderKeyHint("→", "next page"))
+	}
+
+	content := title + infoLine + "\n\n" + m.table.View() + "\n\n" + StyleMuted.Render(strings.Join(hints, "   "))
+	cw := m.cardWidth()
+	card := TUICardStyle.Width(cw - 6).Render(content)
+	return TUICenter(m.width, card)
+}
+
+// cardWidth returns the outer width of the centered content card.
+func (m PlansListModel) cardWidth() int {
+	w := m.width - 6
+	if w > 128 {
+		w = 128
+	}
+	if w < 60 {
+		w = 60
+	}
+	return w
 }
 
 func buildPlanContent(p *planv1.ExecutionPlan) string {

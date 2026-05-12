@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
@@ -88,7 +87,19 @@ func (m StackStatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.table.SetHeight(m.height - 8)
+		cw := m.cardWidth()
+		tableInner := cw - 6
+		svcWidth := tableInner - 36
+		if svcWidth < 20 {
+			svcWidth = 20
+		}
+		m.table.SetColumns([]table.Column{
+			{Title: "Service", Width: svcWidth},
+			{Title: "Container ID", Width: 14},
+			{Title: "Status", Width: 10},
+			{Title: "Health", Width: 12},
+		})
+		m.table.SetHeight(max(3, m.height-10))
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -145,40 +156,53 @@ func (m *StackStatusModel) rebuildTable() {
 }
 
 func (m StackStatusModel) View() string {
-	var b strings.Builder
-
-	stackStatus := StyleMuted.Render("unknown")
-	projectName := ""
+	var statusLine string
+	var projectName string
 	if m.stack != nil {
-		stackStatus = stackStatusLabel(m.stack.GetStatus())
+		statusLine = stackStatusLabel(m.stack.GetStatus())
 		projectName = m.stack.GetProjectName()
-	}
-
-	title := StyleHeading.Render("Stack Status")
-	if projectName != "" {
-		title += "  " + StyleMuted.Render(projectName)
-	}
-	b.WriteString(title + "\n")
-	b.WriteString(StyleLabel.Render("status: ") + stackStatus + "\n\n")
-
-	if m.err != nil {
-		b.WriteString(StyleError.Render("  "+m.err.Error()) + "\n")
-		return b.String()
-	}
-
-	if m.stack == nil || len(m.stack.GetServices()) == 0 {
-		b.WriteString(StyleMuted.Render("  No services.") + "\n")
 	} else {
-		b.WriteString(m.table.View() + "\n")
+		statusLine = StyleMuted.Render("unknown")
 	}
 
-	b.WriteString("\n")
-	help := "[r] refresh  [q] quit"
-	if m.watch {
-		help = "[r] refresh  auto-refresh on  [q] quit"
+	headerText := "Stack Status"
+	if projectName != "" {
+		headerText += "  " + StyleMuted.Render(projectName)
 	}
-	b.WriteString(StyleMuted.Render(help) + "\n")
-	return b.String()
+	title := TUICardHeaderStyle.Render(headerText) + "  " + statusLine
+
+	var body string
+	switch {
+	case m.err != nil:
+		body = StyleError.Render(m.err.Error())
+	case m.stack == nil || len(m.stack.GetServices()) == 0:
+		body = StyleMuted.Render("No services.")
+	default:
+		body = m.table.View()
+	}
+
+	watchHint := ""
+	if m.watch {
+		watchHint = "  " + StyleMuted.Render("↻ auto")
+	}
+	hints := renderKeyHint("r", "refresh") + watchHint
+
+	content := title + "\n\n" + body + "\n\n" + StyleMuted.Render(hints)
+	cw := m.cardWidth()
+	card := TUICardStyle.Width(cw - 6).Render(content)
+	return TUICenter(m.width, card)
+}
+
+// cardWidth returns the outer width of the centered content card.
+func (m StackStatusModel) cardWidth() int {
+	w := m.width - 6
+	if w > 128 {
+		w = 128
+	}
+	if w < 60 {
+		w = 60
+	}
+	return w
 }
 
 // stackStatusLabel returns a human-readable coloured label for a StackStatus.
@@ -199,18 +223,18 @@ func stackStatusLabel(s stackv1.StackStatus) string {
 	}
 }
 
-// serviceHealthLabel returns a human-readable coloured label for ServiceHealth.
+// serviceHealthLabel returns a colored badge for a ServiceHealth value.
 func serviceHealthLabel(h stackv1.ServiceHealth) string {
 	switch h {
 	case stackv1.ServiceHealth_SERVICE_HEALTH_HEALTHY:
-		return StyleSuccess.Render("healthy")
+		return BadgePassed.Render("healthy")
 	case stackv1.ServiceHealth_SERVICE_HEALTH_STARTING:
-		return StyleWarning.Render("starting")
+		return BadgePending.Render("starting")
 	case stackv1.ServiceHealth_SERVICE_HEALTH_UNHEALTHY:
-		return StyleError.Render("unhealthy")
+		return BadgeFailed.Render("unhealthy")
 	case stackv1.ServiceHealth_SERVICE_HEALTH_UNKNOWN:
-		return StyleMuted.Render("unknown")
+		return BadgeCancelled.Render("unknown")
 	default:
-		return StyleMuted.Render("unspecified")
+		return BadgeCancelled.Render("unspecified")
 	}
 }

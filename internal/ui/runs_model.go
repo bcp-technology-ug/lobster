@@ -112,7 +112,21 @@ func (m RunsListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.table.SetHeight(m.height - 6)
+		cw := m.cardWidth()
+		tableInner := cw - 6 // subtract border(2) + padding(4)
+		wsWidth := tableInner - 53
+		if wsWidth < 8 {
+			wsWidth = 8
+		}
+		m.table.SetColumns([]table.Column{
+			{Title: "ID", Width: 8},
+			{Title: "Status", Width: 12},
+			{Title: "Workspace", Width: wsWidth},
+			{Title: "Scenarios", Width: 9},
+			{Title: "Duration", Width: 8},
+			{Title: "Created", Width: 16},
+		})
+		m.table.SetHeight(max(3, m.height-10))
 
 	case tea.KeyMsg:
 		if m.filtering {
@@ -215,7 +229,7 @@ func (m *RunsListModel) applyRebuild() {
 		}
 		created := ""
 		if ts := r.GetCreatedAt(); ts != nil {
-			created = ts.AsTime().Format("2006-01-02 15:04:05")
+			created = ts.AsTime().Format("01/02 15:04")
 		}
 		row := table.Row{idShort, status, workspace, scenarios, dur, created}
 		if filterText == "" || strings.Contains(strings.ToLower(workspace), filterText) ||
@@ -231,58 +245,81 @@ func (m RunsListModel) View() string {
 		return m.detail.View()
 	}
 
-	var b strings.Builder
-	b.WriteString(StyleHeading.Render("Run History") + "\n")
+	// ── Card header ──────────────────────────────────────────────────────────
+	title := TUICardHeaderStyle.Render("Run History")
 
-	if m.err != nil {
-		b.WriteString(StyleError.Render("  "+m.err.Error()) + "\n")
+	var infoLine string
+	switch {
+	case m.loading:
+		infoLine = "\n" + StyleMuted.Render("  loading…")
+	case m.err != nil:
+		infoLine = "\n" + StyleError.Render("  "+m.err.Error())
+	case m.filtering:
+		infoLine = "\n" + StyleMuted.Render("  filter: ") + m.filter.View()
 	}
 
-	if m.filtering {
-		b.WriteString("  Filter: " + m.filter.View() + "\n")
+	// ── Footer hints ─────────────────────────────────────────────────────────
+	hints := []string{
+		renderKeyHint("↵", "detail"),
+		renderKeyHint("/", "filter"),
+		renderKeyHint("r", "refresh"),
 	}
-
-	b.WriteString(m.table.View() + "\n\n")
-
-	// Footer keys
-	help := []string{"[enter] detail", "[/] filter", "[r] refresh", "[→] next page", "[q] quit"}
 	if m.nextToken != "" {
-		help = append(help, "[→] next")
+		hints = append(hints, renderKeyHint("→", "next page"))
 	}
-	b.WriteString(StyleMuted.Render(strings.Join(help, "  ")) + "\n")
+	footerHints := strings.Join(hints, "   ")
 
-	return b.String()
+	content := title + infoLine + "\n\n" + m.table.View() + "\n\n" + StyleMuted.Render(footerHints)
+
+	cw := m.cardWidth()
+	card := TUICardStyle.Width(cw - 6).Render(content)
+	return TUICenter(m.width, card)
 }
 
-// runStatusLabel returns a short display string for a run status.
+// cardWidth returns the outer width of the centered content card.
+func (m RunsListModel) cardWidth() int {
+	w := m.width - 6
+	if w > 128 {
+		w = 128
+	}
+	if w < 60 {
+		w = 60
+	}
+	return w
+}
+
+// runStatusLabel returns a colored badge for a run status string.
 func runStatusLabel(s string) string {
 	switch s {
 	case "RUN_STATUS_RUNNING":
-		return "running"
+		return BadgeRunning.Render("running")
 	case "RUN_STATUS_PASSED":
-		return "passed"
+		return BadgePassed.Render("passed")
 	case "RUN_STATUS_FAILED":
-		return "failed"
+		return BadgeFailed.Render("failed")
 	case "RUN_STATUS_CANCELLED":
-		return "cancelled"
+		return BadgeCancelled.Render("cancelled")
 	case "RUN_STATUS_PENDING":
-		return "pending"
+		return BadgePending.Render("pending")
 	default:
-		return strings.ToLower(strings.TrimPrefix(s, "RUN_STATUS_"))
+		return BadgeCancelled.Render(strings.ToLower(strings.TrimPrefix(s, "RUN_STATUS_")))
 	}
 }
 
 // tableStyles returns a styled table.Styles for the TUI.
 func tableStyles() table.Styles {
 	s := table.DefaultStyles()
-	s.Header = s.Header.
+	s.Header = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(colorPrimary).
 		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(colorMuted).
-		BorderBottom(true).
-		Bold(false)
-	s.Selected = s.Selected.
+		BorderForeground(colorPrimary).
+		BorderBottom(true)
+	s.Selected = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Background(colorPrimary).
-		Bold(false)
+		Bold(true)
+	s.Cell = lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#1F2937", Dark: "#D1D5DB"})
 	return s
 }

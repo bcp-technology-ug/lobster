@@ -46,7 +46,8 @@ type runDetailReadyMsg struct{}
 func (m RunDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case runDetailReadyMsg:
-		m.viewport = viewport.New(m.width, m.height-4)
+		cw := m.cardWidth()
+		m.viewport = viewport.New(cw-10, max(3, m.height-12))
 		m.viewport.SetContent(m.buildContent())
 		m.ready = true
 
@@ -54,8 +55,9 @@ func (m RunDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		if m.ready {
-			m.viewport.Width = m.width
-			m.viewport.Height = m.height - 4
+			cw := m.cardWidth()
+			m.viewport.Width = cw - 10
+			m.viewport.Height = max(3, m.height-12)
 			m.viewport.SetContent(m.buildContent())
 		}
 
@@ -77,15 +79,32 @@ func (m RunDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m RunDetailModel) cardWidth() int {
+	w := m.width - 6
+	if w > 128 {
+		w = 128
+	}
+	if w < 60 {
+		w = 60
+	}
+	return w
+}
+
 func (m RunDetailModel) View() string {
 	if !m.ready {
-		return StyleMuted.Render("  loading…")
+		cw := m.cardWidth()
+		card := TUICardStyle.Width(cw - 6).Render(StyleMuted.Render("Loading…"))
+		return TUICenter(m.width, card)
 	}
 
-	header := StyleHeading.Render("Run Detail  "+shortID(m.run.GetRunId())) +
+	header := TUICardHeaderStyle.Render("Run  "+shortID(m.run.GetRunId())) +
 		"  " + StyleMuted.Render(m.run.GetRunId())
-	footer := StyleMuted.Render("[↑/↓] scroll  [b] back  [q] quit")
-	return header + "\n" + m.viewport.View() + "\n" + footer
+	hints := renderKeyHint("↑/↓", "scroll") + "   " + renderKeyHint("b", "back")
+	content := header + "\n\n" + m.viewport.View() + "\n\n" + StyleMuted.Render(hints)
+
+	cw := m.cardWidth()
+	card := TUICardStyle.Width(cw - 6).Render(content)
+	return TUICenter(m.width, card)
 }
 
 func (m RunDetailModel) buildContent() string {

@@ -137,7 +137,6 @@ func initViper(v *viper.Viper, cfgFile string) error {
 	}
 
 	v.SetConfigName("lobster")
-	v.SetConfigType("yaml")
 	v.AddConfigPath(".")
 	if err := v.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
