@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bcp-technology/lobster/internal/steps"
+	"github.com/bcp-technology-ug/lobster/internal/steps"
 )
 
 func registerServiceSteps(r *steps.Registry) error {

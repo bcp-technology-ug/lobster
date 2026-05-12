@@ -7,7 +7,7 @@
 package adminv1
 
 import (
-	config "github.com/bcp-technology/lobster/gen/go/lobster/v1/config"
+	config "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -522,7 +522,7 @@ const file_lobster_v1_admin_proto_rawDesc = "" +
 	"\fAdminService\x12r\n" +
 	"\tGetHealth\x12\".lobster.v1.admin.GetHealthRequest\x1a#.lobster.v1.admin.GetHealthResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/admin/health\x12\x8a\x01\n" +
 	"\x0fGetCapabilities\x12(.lobster.v1.admin.GetCapabilitiesRequest\x1a).lobster.v1.admin.GetCapabilitiesResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/api/v1/admin/capabilities\x12\x8f\x01\n" +
-	"\x10GetConfigSummary\x12).lobster.v1.admin.GetConfigSummaryRequest\x1a*.lobster.v1.admin.GetConfigSummaryResponse\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/admin/config-summaryBCZAgithub.com/bcp-technology/lobster/gen/go/lobster/v1/admin;adminv1b\x06proto3"
+	"\x10GetConfigSummary\x12).lobster.v1.admin.GetConfigSummaryRequest\x1a*.lobster.v1.admin.GetConfigSummaryResponse\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/admin/config-summaryBCZAgithub.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin;adminv1b\x06proto3"
 
 var (
 	file_lobster_v1_admin_proto_rawDescOnce sync.Once

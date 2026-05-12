@@ -6,7 +6,7 @@ package builtin
 import (
 	"os"
 
-	"github.com/bcp-technology/lobster/internal/steps"
+	"github.com/bcp-technology-ug/lobster/internal/steps"
 )
 
 const srcHTTP = "builtin:http"

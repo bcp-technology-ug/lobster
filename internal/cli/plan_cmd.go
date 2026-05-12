@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	planv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/plan"
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
-	"github.com/bcp-technology/lobster/internal/runner"
-	"github.com/bcp-technology/lobster/internal/store"
-	"github.com/bcp-technology/lobster/internal/ui"
+	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology-ug/lobster/internal/runner"
+	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

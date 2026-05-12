@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
-	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
-	"github.com/bcp-technology/lobster/internal/integrations"
-	"github.com/bcp-technology/lobster/internal/reports"
-	"github.com/bcp-technology/lobster/internal/steps"
-	"github.com/bcp-technology/lobster/internal/store"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
+	"github.com/bcp-technology-ug/lobster/internal/integrations"
+	"github.com/bcp-technology-ug/lobster/internal/reports"
+	"github.com/bcp-technology-ug/lobster/internal/steps"
+	"github.com/bcp-technology-ug/lobster/internal/store"
 )
 
 // RunConfig holds the resolved runtime configuration for a workspace run.

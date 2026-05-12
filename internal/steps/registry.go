@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/bcp-technology/lobster/internal/parser"
+	"github.com/bcp-technology-ug/lobster/internal/parser"
 )
 
 // ErrUndefined is returned when no registered step matches the step text.

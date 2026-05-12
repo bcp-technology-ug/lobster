@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	"google.golang.org/grpc/metadata"
 )
 

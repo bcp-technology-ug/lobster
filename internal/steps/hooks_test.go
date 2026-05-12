@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bcp-technology/lobster/internal/steps"
+	"github.com/bcp-technology-ug/lobster/internal/steps"
 )
 
 func TestHookRegistry_RunBeforeSuite_InOrder(t *testing.T) {

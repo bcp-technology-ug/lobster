@@ -3,7 +3,7 @@ package builtin
 import (
 	"testing"
 
-	"github.com/bcp-technology/lobster/internal/steps"
+	"github.com/bcp-technology-ug/lobster/internal/steps"
 )
 
 func newShellCtx() *steps.ScenarioContext {

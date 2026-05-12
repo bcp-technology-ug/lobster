@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bcp-technology/lobster/internal/parser"
+	"github.com/bcp-technology-ug/lobster/internal/parser"
 )
 
 // lintGherkin is a helper that parses src and then lints the result.

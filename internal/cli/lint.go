@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bcp-technology/lobster/internal/parser"
-	"github.com/bcp-technology/lobster/internal/ui"
+	"github.com/bcp-technology-ug/lobster/internal/parser"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

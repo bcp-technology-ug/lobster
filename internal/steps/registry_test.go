@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bcp-technology/lobster/internal/parser"
-	"github.com/bcp-technology/lobster/internal/steps"
+	"github.com/bcp-technology-ug/lobster/internal/parser"
+	"github.com/bcp-technology-ug/lobster/internal/steps"
 )
 
 func noopHandler(_ *steps.ScenarioContext, _ ...string) error { return nil }

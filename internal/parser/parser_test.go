@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bcp-technology/lobster/internal/parser"
+	"github.com/bcp-technology-ug/lobster/internal/parser"
 )
 
 // helper returns a Feature or immediately fails the test.

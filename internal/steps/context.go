@@ -3,7 +3,7 @@ package steps
 import (
 	"net/http"
 
-	"github.com/bcp-technology/lobster/internal/parser"
+	"github.com/bcp-technology-ug/lobster/internal/parser"
 )
 
 // ScenarioContext is the per-scenario execution state threaded through every

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	planv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/plan"
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
+	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

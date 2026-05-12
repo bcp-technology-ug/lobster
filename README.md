@@ -77,7 +77,7 @@ Most E2E testing tools are either SaaS products with billing tiers, framework-sp
 ### Install
 
 ```bash
-go install github.com/bcp-technology/lobster@latest
+go install github.com/bcp-technology-ug/lobster@latest
 ```
 
 ### Initialise a project

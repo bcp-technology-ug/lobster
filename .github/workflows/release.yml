@@ -1,0 +1,422 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Release — triggered on version tags (v*).
+#
+# Pipeline:
+#   build-binaries     → cross-compile lobster + lobsterd for every supported
+#                         OS/architecture using native or cross-compile toolchains.
+#                         Produces compressed archives (.tar.gz / .zip) and
+#                         uploads them as workflow artifacts.
+#   build-push-images  → build and push multi-arch Docker images to GHCR,
+#                         sign them with Sigstore/cosign, and generate SBOMs.
+#   github-release     → download all binary artifacts, compute SHA-256
+#                         checksums, and publish the GitHub release.
+#
+# Supported binary targets:
+#   linux/amd64 · linux/arm64 · linux/arm (v7)
+#   darwin/amd64 · darwin/arm64
+#   windows/amd64
+#
+# Container image targets (GHCR):
+#   ghcr.io/bcp-technology-ug/lobster:{version},latest   — linux/amd64,linux/arm64
+#   ghcr.io/bcp-technology-ug/lobsterd:{version},latest  — linux/amd64,linux/arm64
+# ─────────────────────────────────────────────────────────────────────────────
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: write        # create GitHub releases and upload assets
+  packages: write        # push container images to GHCR
+  id-token: write        # cosign keyless signing (OIDC)
+  attestations: write    # provenance attestations
+
+# Never run more than one release pipeline for the same tag.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # CGO is required by mattn/go-sqlite3 (embedded SQLite C library).
+  CGO_ENABLED: "1"
+  # Registry and image names.
+  REGISTRY: ghcr.io
+  IMAGE_CLI: ghcr.io/bcp-technology-ug/lobster
+  IMAGE_DAEMON: ghcr.io/bcp-technology-ug/lobsterd
+  # Base Go build flags (version ldflags are appended per-step using the tag).
+  GO_LDFLAGS_BASE: "-s -w"
+  GO_BUILD_FLAGS: "-trimpath"
+  # ldflag injection targets.
+  LDFLAG_CLI_VERSION: github.com/bcp-technology-ug/lobster/internal/cli.Version
+  LDFLAG_DAEMON_VERSION: github.com/bcp-technology-ug/lobster/internal/daemon.version
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # 1. Build cross-platform binaries
+  # ───────────────────────────────────────────────────────────────────────────
+  build-binaries:
+    name: Build Binary (${{ matrix.goos }}/${{ matrix.goarch }}${{ matrix.goarm && format('/v{0}', matrix.goarm) || '' }})
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Linux ──────────────────────────────────────────────────────────
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact_suffix: linux-amd64
+            archive_ext: .tar.gz
+
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact_suffix: linux-arm64
+            archive_ext: .tar.gz
+            apt_packages: gcc-aarch64-linux-gnu
+            cc: aarch64-linux-gnu-gcc
+
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: arm
+            goarm: "7"
+            artifact_suffix: linux-armv7
+            archive_ext: .tar.gz
+            apt_packages: gcc-arm-linux-gnueabihf
+            cc: arm-linux-gnueabihf-gcc
+
+          # ── macOS ──────────────────────────────────────────────────────────
+          - runner: macos-13        # Intel x86-64
+            goos: darwin
+            goarch: amd64
+            artifact_suffix: darwin-amd64
+            archive_ext: .tar.gz
+
+          - runner: macos-latest    # Apple Silicon arm64
+            goos: darwin
+            goarch: arm64
+            artifact_suffix: darwin-arm64
+            archive_ext: .tar.gz
+
+          # ── Windows ────────────────────────────────────────────────────────
+          - runner: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact_suffix: windows-amd64
+            archive_ext: .zip
+            binary_ext: .exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # ── Linux cross-compiler setup ─────────────────────────────────────────
+      - name: Install cross-compiler (Linux)
+        if: runner.os == 'Linux' && matrix.apt_packages != ''
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ${{ matrix.apt_packages }}
+
+      - name: Install native gcc (Linux amd64)
+        if: runner.os == 'Linux' && matrix.apt_packages == ''
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gcc libc6-dev
+
+      # ── Windows: ensure MinGW-w64 gcc is on PATH ───────────────────────────
+      - name: Configure MinGW (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # MSYS2 / MinGW-w64 is pre-installed on windows-latest.
+          # Prepend the mingw64 bin directory so 'gcc' resolves correctly.
+          "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      # ── Compute short version string (strip leading 'v') ───────────────────
+      - name: Extract version
+        id: version
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          echo "tag=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "short=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      # ── Build lobster + lobsterd ───────────────────────────────────────────
+      - name: Build binaries (Unix)
+        if: runner.os != 'Windows'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          CC: ${{ matrix.cc }}
+        run: |
+          mkdir -p dist
+          VERSION="${{ steps.version.outputs.tag }}"
+          LDFLAGS="${{ env.GO_LDFLAGS_BASE }} -X ${{ env.LDFLAG_CLI_VERSION }}=${VERSION}"
+          go build ${{ env.GO_BUILD_FLAGS }} \
+            -ldflags="${LDFLAGS}" \
+            -o dist/lobster${{ matrix.binary_ext }} \
+            ./cmd/lobster
+
+          LDFLAGS="${{ env.GO_LDFLAGS_BASE }} -X ${{ env.LDFLAG_DAEMON_VERSION }}=${VERSION}"
+          go build ${{ env.GO_BUILD_FLAGS }} \
+            -ldflags="${LDFLAGS}" \
+            -o dist/lobsterd${{ matrix.binary_ext }} \
+            ./cmd/lobsterd
+
+      - name: Build binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $VERSION = "${{ steps.version.outputs.tag }}"
+          $LdflagsBase = "${{ env.GO_LDFLAGS_BASE }}"
+
+          go build ${{ env.GO_BUILD_FLAGS }} `
+            "-ldflags=$LdflagsBase -X ${{ env.LDFLAG_CLI_VERSION }}=$VERSION" `
+            -o dist\lobster${{ matrix.binary_ext }} `
+            .\cmd\lobster
+
+          go build ${{ env.GO_BUILD_FLAGS }} `
+            "-ldflags=$LdflagsBase -X ${{ env.LDFLAG_DAEMON_VERSION }}=$VERSION" `
+            -o dist\lobsterd${{ matrix.binary_ext }} `
+            .\cmd\lobsterd
+
+      # ── Package into archives ──────────────────────────────────────────────
+      - name: Create tar.gz archives (Unix)
+        if: matrix.archive_ext == '.tar.gz'
+        run: |
+          VERSION="${{ steps.version.outputs.tag }}"
+          cd dist
+
+          # lobster archive
+          mkdir lobster
+          cp lobster${{ matrix.binary_ext }} lobster/
+          tar -czf "lobster_${VERSION}_${{ matrix.artifact_suffix }}.tar.gz" lobster/
+          rm -rf lobster
+
+          # lobsterd archive
+          mkdir lobsterd
+          cp lobsterd${{ matrix.binary_ext }} lobsterd/
+          tar -czf "lobsterd_${VERSION}_${{ matrix.artifact_suffix }}.tar.gz" lobsterd/
+          rm -rf lobsterd
+
+      - name: Create zip archives (Windows)
+        if: matrix.archive_ext == '.zip'
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.version.outputs.tag }}"
+          Set-Location dist
+
+          # lobster zip
+          New-Item -ItemType Directory -Force -Path lobster | Out-Null
+          Copy-Item "lobster${{ matrix.binary_ext }}" lobster/
+          Compress-Archive -Path lobster -DestinationPath "lobster_${VERSION}_${{ matrix.artifact_suffix }}.zip"
+          Remove-Item -Recurse -Force lobster
+
+          # lobsterd zip
+          New-Item -ItemType Directory -Force -Path lobsterd | Out-Null
+          Copy-Item "lobsterd${{ matrix.binary_ext }}" lobsterd/
+          Compress-Archive -Path lobsterd -DestinationPath "lobsterd_${VERSION}_${{ matrix.artifact_suffix }}.zip"
+          Remove-Item -Recurse -Force lobsterd
+
+      # ── Upload archives as workflow artifacts ──────────────────────────────
+      - name: Upload binary archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.artifact_suffix }}
+          path: |
+            dist/lobster_*${{ matrix.archive_ext }}
+            dist/lobsterd_*${{ matrix.archive_ext }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 2. Build and push multi-arch container images to GHCR
+  # ───────────────────────────────────────────────────────────────────────────
+  build-push-images:
+    name: Build & Push Container Images
+    runs-on: ubuntu-latest
+
+    outputs:
+      lobster-digest: ${{ steps.push-lobster.outputs.digest }}
+      lobsterd-digest: ${{ steps.push-lobsterd.outputs.digest }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Extract Docker metadata (tags, labels) ─────────────────────────────
+      - name: Extract Docker metadata — lobster
+        id: meta-lobster
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_CLI }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=lobster
+            org.opencontainers.image.description=BDD test runner CLI
+
+      - name: Extract Docker metadata — lobsterd
+        id: meta-lobsterd
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_DAEMON }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=lobsterd
+            org.opencontainers.image.description=Lobster daemon — gRPC + HTTP/JSON gateway
+
+      # ── Authenticate to GHCR ───────────────────────────────────────────────
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── QEMU + Buildx for multi-arch builds ────────────────────────────────
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── Build and push lobster (CLI) image ─────────────────────────────────
+      - name: Build and push lobster image
+        id: push-lobster
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: config/Dockerfile.lobster
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-lobster.outputs.tags }}
+          labels: ${{ steps.meta-lobster.outputs.labels }}
+          cache-from: type=gha,scope=lobster
+          cache-to: type=gha,mode=max,scope=lobster
+          provenance: true
+          sbom: true
+
+      # ── Build and push lobsterd (daemon) image ─────────────────────────────
+      - name: Build and push lobsterd image
+        id: push-lobsterd
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: config/Dockerfile.lobsterd
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-lobsterd.outputs.tags }}
+          labels: ${{ steps.meta-lobsterd.outputs.labels }}
+          cache-from: type=gha,scope=lobsterd
+          cache-to: type=gha,mode=max,scope=lobsterd
+          provenance: true
+          sbom: true
+
+      # ── Cosign keyless signing (Sigstore) ──────────────────────────────────
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign lobster image
+        run: |
+          cosign sign --yes \
+            "${{ env.IMAGE_CLI }}@${{ steps.push-lobster.outputs.digest }}"
+
+      - name: Sign lobsterd image
+        run: |
+          cosign sign --yes \
+            "${{ env.IMAGE_DAEMON }}@${{ steps.push-lobsterd.outputs.digest }}"
+
+      # ── GitHub provenance attestation ─────────────────────────────────────
+      - name: Attest lobster image provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.IMAGE_CLI }}
+          subject-digest: ${{ steps.push-lobster.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest lobsterd image provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.IMAGE_DAEMON }}
+          subject-digest: ${{ steps.push-lobsterd.outputs.digest }}
+          push-to-registry: true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 3. Create GitHub release with all binary archives and checksums
+  # ───────────────────────────────────────────────────────────────────────────
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-binaries, build-push-images]
+
+    steps:
+      # ── Download all binary archives ──────────────────────────────────────
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binaries-*
+          path: release-assets
+          merge-multiple: true
+
+      # ── Generate SHA-256 checksums ─────────────────────────────────────────
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # ── Publish GitHub release ─────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "${{ github.ref_name }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            release-assets/*
+          body: |
+            ## Container images
+
+            Pull the latest images from GHCR:
+
+            ```sh
+            # CLI
+            docker pull ${{ env.IMAGE_CLI }}:${{ github.ref_name }}
+
+            # Daemon
+            docker pull ${{ env.IMAGE_DAEMON }}:${{ github.ref_name }}
+            ```
+
+            Images are built for `linux/amd64` and `linux/arm64`.
+            All images are signed with [Sigstore cosign](https://docs.sigstore.dev/) and include SBOM and provenance attestations.
+
+            ## Binary checksums
+
+            Verify your download with `SHA256SUMS.txt` (included in the release assets).
+
+            ```sh
+            sha256sum --check SHA256SUMS.txt
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

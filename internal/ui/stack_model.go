@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
+	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 )

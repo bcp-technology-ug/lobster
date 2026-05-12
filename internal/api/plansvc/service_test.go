@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	planv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/plan"
-	planstore "github.com/bcp-technology/lobster/gen/sqlc/plan"
-	"github.com/bcp-technology/lobster/internal/api/convert"
-	"github.com/bcp-technology/lobster/internal/api/plansvc"
-	"github.com/bcp-technology/lobster/internal/testutil"
+	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
+	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
+	"github.com/bcp-technology-ug/lobster/internal/api/convert"
+	"github.com/bcp-technology-ug/lobster/internal/api/plansvc"
+	"github.com/bcp-technology-ug/lobster/internal/testutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

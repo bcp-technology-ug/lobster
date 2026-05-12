@@ -1,10 +1,10 @@
 package convert
 
 import (
-	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
-	planv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/plan"
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
-	planstore "github.com/bcp-technology/lobster/gen/sqlc/plan"
+	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
 )
 
 // ExecutionPlanFromDB converts a sqlc ExecutionPlan row to the proto message.

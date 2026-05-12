@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/bcp-technology/lobster/internal/daemon"
-	"github.com/bcp-technology/lobster/internal/log"
+	"github.com/bcp-technology-ug/lobster/internal/daemon"
+	"github.com/bcp-technology-ug/lobster/internal/log"
 )
 
 func main() {

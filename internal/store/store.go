@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	integrationstore "github.com/bcp-technology/lobster/gen/sqlc/integrations"
-	planstore "github.com/bcp-technology/lobster/gen/sqlc/plan"
-	runstore "github.com/bcp-technology/lobster/gen/sqlc/run"
-	stackstore "github.com/bcp-technology/lobster/gen/sqlc/stack"
-	"github.com/bcp-technology/lobster/internal/store/migrations"
-	"github.com/bcp-technology/lobster/internal/store/sqlite"
+	integrationstore "github.com/bcp-technology-ug/lobster/gen/sqlc/integrations"
+	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
+	runstore "github.com/bcp-technology-ug/lobster/gen/sqlc/run"
+	stackstore "github.com/bcp-technology-ug/lobster/gen/sqlc/stack"
+	"github.com/bcp-technology-ug/lobster/internal/store/migrations"
+	"github.com/bcp-technology-ug/lobster/internal/store/sqlite"
 )
 
 // Config controls SQLite setup and migration behavior.

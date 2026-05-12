@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/bcp-technology/lobster/internal/reports"
+import "github.com/bcp-technology-ug/lobster/internal/reports"
 
 // CaptureReporter is a no-op reporter that stores the final RunResult so
 // callers can inspect it after a run (e.g. to print undefined steps).

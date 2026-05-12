@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
-	"github.com/bcp-technology/lobster/internal/ui"
+	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 )
 

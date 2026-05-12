@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bcp-technology/lobster/internal/store"
-	"github.com/bcp-technology/lobster/internal/ui"
+	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -109,7 +109,7 @@ func newConfigCommand(v *viper.Viper) *cobra.Command {
 					_, _ = fmt.Fprint(cmd.OutOrStdout(),
 						ui.RenderError("Persistence validation failed", err.Error(),
 							"Check that the SQLite path is writable and migrations directory exists.",
-							"https://github.com/bcp-technology/lobster/blob/main/docs/persistence.md"),
+							"https://github.com/bcp-technology-ug/lobster/blob/main/docs/persistence.md"),
 					)
 					return &ExitError{Code: 1}
 				}

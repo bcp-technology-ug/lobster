@@ -1,0 +1,33 @@
+# CODEOWNERS
+# These owners are automatically requested for review on every pull request.
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything.
+*                                   @bencoepp
+
+# CLI and daemon entrypoints.
+/cmd/                               @bencoepp
+/internal/cli/                      @bencoepp
+/internal/daemon/                   @bencoepp
+
+# Core runner and parser — high-risk changes.
+/internal/runner/                   @bencoepp
+/internal/parser/                   @bencoepp
+
+# API contracts and generated code.
+/proto/                             @bencoepp
+/gen/                               @bencoepp
+
+# Persistence layer.
+/internal/store/                    @bencoepp
+/migrations/                        @bencoepp
+/sql/                               @bencoepp
+
+# Infrastructure and CI.
+/.github/                           @bencoepp
+/config/                            @bencoepp
+
+# Documentation.
+/docs/                              @bencoepp
+README.md                           @bencoepp
+CHANGELOG.md                        @bencoepp

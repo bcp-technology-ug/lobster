@@ -1,8 +1,8 @@
 package convert
 
 import (
-	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
-	stackstore "github.com/bcp-technology/lobster/gen/sqlc/stack"
+	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
+	stackstore "github.com/bcp-technology-ug/lobster/gen/sqlc/stack"
 )
 
 // StackFromDB converts a sqlc Stack row to the proto Stack message.

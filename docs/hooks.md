@@ -30,7 +30,7 @@ Hooks are registered on a `*steps.HookRegistry`. Custom step packages receive
 the registry during their `Register` call and attach hooks at that point.
 
 ```go
-import "github.com/bcp-technology/lobster/internal/steps"
+import "github.com/bcp-technology-ug/lobster/internal/steps"
 
 func Register(r *steps.Registry, h *steps.HookRegistry) error {
     h.BeforeSuite(func(ctx context.Context) error {

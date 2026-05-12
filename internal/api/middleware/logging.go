@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	lobsterlog "github.com/bcp-technology/lobster/internal/log"
+	lobsterlog "github.com/bcp-technology-ug/lobster/internal/log"
 )
 
 // Logging returns a gRPC unary interceptor that injects a request-scoped zap

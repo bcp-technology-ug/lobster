@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bcp-technology/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/store"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bcp-technology/lobster/internal/store/migrations"
+	"github.com/bcp-technology-ug/lobster/internal/store/migrations"
 )
 
 const (

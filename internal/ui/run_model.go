@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bcp-technology/lobster/internal/reports"
+	"github.com/bcp-technology-ug/lobster/internal/reports"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

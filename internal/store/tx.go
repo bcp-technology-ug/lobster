@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 
-	integrationstore "github.com/bcp-technology/lobster/gen/sqlc/integrations"
-	planstore "github.com/bcp-technology/lobster/gen/sqlc/plan"
-	runstore "github.com/bcp-technology/lobster/gen/sqlc/run"
-	stackstore "github.com/bcp-technology/lobster/gen/sqlc/stack"
+	integrationstore "github.com/bcp-technology-ug/lobster/gen/sqlc/integrations"
+	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
+	runstore "github.com/bcp-technology-ug/lobster/gen/sqlc/run"
+	stackstore "github.com/bcp-technology-ug/lobster/gen/sqlc/stack"
 )
 
 // TxStore exposes domain query sets bound to a single SQL transaction.

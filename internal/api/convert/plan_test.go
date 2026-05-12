@@ -3,7 +3,7 @@ package convert
 import (
 	"testing"
 
-	planstore "github.com/bcp-technology/lobster/gen/sqlc/plan"
+	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
 )
 
 func TestExecutionPlanFromDB_basic(t *testing.T) {

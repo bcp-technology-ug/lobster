@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bcp-technology/lobster/internal/reports"
+	"github.com/bcp-technology-ug/lobster/internal/reports"
 )
 
 func TestStatus_String(t *testing.T) {

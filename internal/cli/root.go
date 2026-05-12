@@ -6,13 +6,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bcp-technology/lobster/internal/config"
-	"github.com/bcp-technology/lobster/internal/store"
-	"github.com/bcp-technology/lobster/internal/ui"
+	"github.com/bcp-technology-ug/lobster/internal/config"
+	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+// Version is set at build time via -ldflags "-X github.com/bcp-technology-ug/lobster/internal/cli.Version=<tag>".
+// It falls back to "dev" for local/unversioned builds.
+var Version = "dev"
 
 // ExitError signals a non-zero exit without printing an additional error panel.
 // Use this when a command has already rendered its own diagnostic output.
@@ -34,11 +38,12 @@ func NewRootCommand() *cobra.Command {
 	var cfgFile string
 
 	root := &cobra.Command{
-		Use:   "lobster",
-		Short: "CLI-first end-to-end BDD runner",
+		Use:     "lobster",
+		Short:   "CLI-first end-to-end BDD runner",
+		Version: Version,
 		Long: ui.StyleHeading.Render("lobster") + " — contract-driven BDD end-to-end testing\n\n" +
 			ui.StyleMuted.Render("Run feature scenarios against real infrastructure with full observability.\n") +
-			ui.StyleMuted.Render("Docs: https://github.com/bcp-technology/lobster"),
+			ui.StyleMuted.Render("Docs: https://github.com/bcp-technology-ug/lobster"),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {

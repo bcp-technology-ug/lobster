@@ -12,7 +12,7 @@ This guide walks through installing lobster, creating your first project, and ru
 ## Install lobster
 
 ```bash
-go install github.com/bcp-technology/lobster@latest
+go install github.com/bcp-technology-ug/lobster@latest
 ```
 
 Verify installation:

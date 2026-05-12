@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bcp-technology/lobster/internal/integrations"
+	"github.com/bcp-technology-ug/lobster/internal/integrations"
 )
 
 // --- fake adapter used in tests ---

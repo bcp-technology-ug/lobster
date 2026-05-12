@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/bcp-technology/lobster/internal/store"
-	"github.com/bcp-technology/lobster/internal/store/migrations"
+	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/store/migrations"
 )
 
 var storeCounter atomic.Int64

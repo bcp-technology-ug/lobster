@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	adminv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/admin"
-	"github.com/bcp-technology/lobster/internal/ui"
+	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

@@ -170,7 +170,7 @@ jobs:
           go-version: '1.22'
 
       - name: Install lobster
-        run: go install github.com/bcp-technology/lobster@latest
+        run: go install github.com/bcp-technology-ug/lobster@latest
 
       - name: Run lobster
         run: |
@@ -199,7 +199,7 @@ lobster_e2e:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   script:
-    - go install github.com/bcp-technology/lobster@latest
+    - go install github.com/bcp-technology-ug/lobster@latest
     - lobster validate
     - lobster run --ci --report-junit reports/junit.xml --report-json reports/results.json
   artifacts:

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
-	"github.com/bcp-technology/lobster/internal/reports"
+	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology-ug/lobster/internal/reports"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )

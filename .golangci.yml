@@ -1,0 +1,156 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# golangci-lint configuration
+# Docs: https://golangci-lint.run/usage/configuration/
+# ─────────────────────────────────────────────────────────────────────────────
+version: "2"
+
+run:
+  timeout: 5m
+  # Include generated files (gen/) in runs.exclude-files so they are skipped.
+  build-tags: []
+
+linters:
+  # Start from the "standard" recommended set, then extend.
+  default: standard
+
+  enable:
+    # ── Correctness ───────────────────────────────────────────────────────────
+    - bodyclose        # HTTP response bodies must be closed.
+    - contextcheck     # Functions should pass context.Context properly.
+    - errname          # Error type naming conventions.
+    - errorlint        # Correct usage of errors.Is / errors.As / %w.
+    - exhaustruct      # Ensure all struct fields are set (opt-in via comment).
+    - exportloopref    # Loop variable capture bugs (pre-1.22).
+    - nilerr           # Functions should not return nil errors.
+    - noctx            # HTTP requests should use context.
+    - rowserrcheck     # sql.Rows.Err() must be checked.
+    - sqlclosecheck    # sql.Rows / sql.Stmt must be closed.
+    - unparam          # Report unused function parameters.
+    - wastedassign     # Detect wasted assignments.
+
+    # ── Security ──────────────────────────────────────────────────────────────
+    - gosec            # Common security issues (G-codes).
+
+    # ── Style & maintainability ───────────────────────────────────────────────
+    - gci              # Deterministic import ordering.
+    - godot            # Comment sentences should end with a period.
+    - gofmt            # Enforce standard formatting.
+    - goimports        # Enforce standard import grouping.
+    - misspell         # Catch common English misspellings.
+    - prealloc         # Suggest slice pre-allocation.
+    - revive           # Opinionated but configurable Go style.
+    - thelper          # Test helper functions should call t.Helper().
+    - unconvert        # Remove unnecessary type conversions.
+    - whitespace       # Unnecessary blank lines.
+
+  disable:
+    # Overly strict / causes too many false positives for a project at this stage.
+    - depguard
+    - funlen
+    - gocognit
+    - gocyclo
+    - lll
+    - maintidx
+    - nlreturn
+    - wsl
+    - godox            # TODO/FIXME comments are fine.
+    - exhaustive       # Not required to handle all enum cases everywhere.
+
+linters-settings:
+  # ── errcheck ────────────────────────────────────────────────────────────────
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  # ── gosec ───────────────────────────────────────────────────────────────────
+  gosec:
+    excludes:
+      - G115  # integer overflow: acceptable for non-crypto counters
+    config:
+      global:
+        audit: true
+
+  # ── gci ─────────────────────────────────────────────────────────────────────
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/bcp-technology-ug/lobster)
+
+  # ── goimports ───────────────────────────────────────────────────────────────
+  goimports:
+    local-prefixes: github.com/bcp-technology-ug/lobster
+
+  # ── revive ──────────────────────────────────────────────────────────────────
+  revive:
+    rules:
+      - name: exported
+        disabled: true   # Allow unexported names without doc comments in tests.
+      - name: var-naming
+        severity: warning
+      - name: error-return
+        severity: warning
+      - name: if-return
+        severity: warning
+      - name: increment-decrement
+        severity: warning
+      - name: range
+        severity: warning
+      - name: unused-parameter
+        severity: warning
+
+  # ── misspell ────────────────────────────────────────────────────────────────
+  misspell:
+    locale: US
+
+  # ── exhaustruct ─────────────────────────────────────────────────────────────
+  exhaustruct:
+    # Only enforce exhaustive struct initialization where explicitly opted-in
+    # with a `//exhaustruct:enforce` comment on the struct type.
+    include: []
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  exclude-rules:
+    # Test files: relax several rules that are too strict for test code.
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - exhaustruct
+        - unparam
+
+    # Generated code: skip all linting.
+    - path: ^gen/
+      linters:
+        - revive
+        - godot
+        - gci
+        - goimports
+        - gosec
+        - unused
+
+    # Generated sqlc code.
+    - path: ^gen/sqlc/
+      text: ".*"
+      linters:
+        - revive
+        - godot
+        - stylecheck
+        - unused
+
+    # Protobuf generated code.
+    - path: ^gen/go/
+      text: ".*"
+      linters:
+        - revive
+        - godot
+        - stylecheck
+        - unused
+
+    # Migration SQL embeds: the embed.go files are trivial.
+    - path: embed\.go
+      linters:
+        - godot

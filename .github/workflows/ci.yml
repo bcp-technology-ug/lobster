@@ -1,0 +1,220 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI — quality gates for every push to main/develop and every pull request.
+#
+# Jobs (all independent except the lobster self-test jobs which wait for unit):
+#   lint            → golangci-lint + go vet + gofmt check
+#   vuln-scan       → govulncheck (Go vulnerability database)
+#   unit-tests      → go test -race with coverage upload
+#   lobster-cli     → lobster self-tests, CLI scenarios only (no Docker)
+#   lobster-daemon  → lobster self-tests, daemon scenarios (Docker required)
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - "CODE_OF_CONDUCT.md"
+      - "CONTRIBUTING.md"
+      - "MISSION.md"
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+# Cancel in-flight runs for the same ref when a newer push arrives.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared build environment
+# ─────────────────────────────────────────────────────────────────────────────
+env:
+  # CGO is required by mattn/go-sqlite3 which embeds the SQLite C library.
+  CGO_ENABLED: "1"
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # 1. Lint — golangci-lint, go vet, gofmt
+  # ───────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install CGO build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gcc libc6-dev
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt check
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            printf 'The following files are not gofmt-formatted:\n%s\n' "$unformatted"
+            exit 1
+          fi
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 2. Vulnerability scan — Go vulnerability database
+  # ───────────────────────────────────────────────────────────────────────────
+  vuln-scan:
+    name: Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: go.mod
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 3. Unit tests — race detector + coverage
+  # ───────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install CGO build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gcc libc6-dev
+
+      - name: Run unit tests
+        run: go test -race -count=1 -timeout=10m -coverprofile=coverage.out ./...
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
+        continue-on-error: true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 4. Lobster self-tests — CLI scenarios (no Docker required)
+  #
+  # Installs the lobster binary, then uses it to run all feature scenarios that
+  # are not tagged @docker, @daemon, or @integration.  No Docker daemon needed.
+  # ───────────────────────────────────────────────────────────────────────────
+  lobster-cli-tests:
+    name: Lobster Self-Tests (CLI)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install CGO build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gcc libc6-dev
+
+      - name: Build and install lobster CLI
+        run: go install ./cmd/lobster
+
+      - name: Lobster self-tests — CLI scenarios
+        working-directory: tests
+        run: |
+          lobster run \
+            --tags '~@docker ~@daemon ~@integration' \
+            --no-compose \
+            --report-junit ../reports/junit-cli.xml \
+            --ci
+
+      - name: Upload JUnit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-cli
+          path: reports/junit-cli.xml
+          if-no-files-found: ignore
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 5. Lobster self-tests — daemon scenarios (Docker Compose required)
+  #
+  # Builds the lobsterd Docker image, then uses lobster to start the daemon
+  # stack and run all @daemon-tagged scenarios.  lobster tears down the stack
+  # automatically after the run.
+  # ───────────────────────────────────────────────────────────────────────────
+  lobster-daemon-tests:
+    name: Lobster Self-Tests (Daemon)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install CGO build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gcc libc6-dev
+
+      - name: Build and install lobster CLI
+        run: go install ./cmd/lobster
+
+      - name: Pre-build lobsterd Docker image
+        run: docker compose -f config/docker-compose.yml build --quiet
+
+      - name: Clean up any leftover containers from prior runs
+        run: docker compose -f config/docker-compose.yml down -v 2>/dev/null || true
+
+      - name: Lobster self-tests — daemon scenarios
+        working-directory: tests
+        run: |
+          lobster run \
+            --tags '@daemon' \
+            --report-junit ../reports/junit-daemon.xml \
+            --ci
+
+      - name: Upload JUnit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-daemon
+          path: reports/junit-daemon.xml
+          if-no-files-found: ignore
+
+      - name: Teardown Docker Compose stack
+        if: always()
+        run: docker compose -f config/docker-compose.yml down -v 2>/dev/null || true

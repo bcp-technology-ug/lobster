@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bcp-technology/lobster/internal/api/convert"
-	lobsterlog "github.com/bcp-technology/lobster/internal/log"
-	"github.com/bcp-technology/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/api/convert"
+	lobsterlog "github.com/bcp-technology-ug/lobster/internal/log"
+	"github.com/bcp-technology-ug/lobster/internal/store"
 
-	commonv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
-	runstore "github.com/bcp-technology/lobster/gen/sqlc/run"
+	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	runstore "github.com/bcp-technology-ug/lobster/gen/sqlc/run"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"

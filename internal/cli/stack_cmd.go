@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
-	"github.com/bcp-technology/lobster/internal/ui"
+	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

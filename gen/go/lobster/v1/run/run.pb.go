@@ -8,8 +8,8 @@ package runv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
-	common "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
-	config "github.com/bcp-technology/lobster/gen/go/lobster/v1/config"
+	common "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	config "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -2161,7 +2161,7 @@ const file_lobster_v1_run_proto_rawDesc = "" +
 	"\x06GetRun\x12\x1d.lobster.v1.run.GetRunRequest\x1a\x1e.lobster.v1.run.GetRunResponse\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/api/v1/runs/{run_id}\x12{\n" +
 	"\x0fStreamRunEvents\x12&.lobster.v1.run.StreamRunEventsRequest\x1a\x18.lobster.v1.run.RunEvent\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/runs/{run_id}:events0\x01\x12y\n" +
 	"\tCancelRun\x12 .lobster.v1.run.CancelRunRequest\x1a!.lobster.v1.run.CancelRunResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/api/v1/runs/{run_id}:cancel\x12c\n" +
-	"\bListRuns\x12\x1f.lobster.v1.run.ListRunsRequest\x1a .lobster.v1.run.ListRunsResponse\"\x14\x82\xd3\xe4\x93\x02\x0e\x12\f/api/v1/runsB?Z=github.com/bcp-technology/lobster/gen/go/lobster/v1/run;runv1b\x06proto3"
+	"\bListRuns\x12\x1f.lobster.v1.run.ListRunsRequest\x1a .lobster.v1.run.ListRunsResponse\"\x14\x82\xd3\xe4\x93\x02\x0e\x12\f/api/v1/runsB?Z=github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run;runv1b\x06proto3"
 
 var (
 	file_lobster_v1_run_proto_rawDescOnce sync.Once

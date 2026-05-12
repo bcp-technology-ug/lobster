@@ -1,4 +1,4 @@
-module github.com/bcp-technology/lobster
+module github.com/bcp-technology-ug/lobster
 
 go 1.25.0
 

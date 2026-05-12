@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	runv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"

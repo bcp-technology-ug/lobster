@@ -8,8 +8,8 @@ package planv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
-	common "github.com/bcp-technology/lobster/gen/go/lobster/v1/common"
-	run "github.com/bcp-technology/lobster/gen/go/lobster/v1/run"
+	common "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	run "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -618,7 +618,7 @@ const file_lobster_v1_plan_proto_rawDesc = "" +
 	"\vPlanService\x12]\n" +
 	"\x04Plan\x12\x1c.lobster.v1.plan.PlanRequest\x1a\x1d.lobster.v1.plan.PlanResponse\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/api/v1/plans\x12m\n" +
 	"\aGetPlan\x12\x1f.lobster.v1.plan.GetPlanRequest\x1a .lobster.v1.plan.GetPlanResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/plans/{plan_id}\x12i\n" +
-	"\tListPlans\x12!.lobster.v1.plan.ListPlansRequest\x1a\".lobster.v1.plan.ListPlansResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/api/v1/plansBAZ?github.com/bcp-technology/lobster/gen/go/lobster/v1/plan;planv1b\x06proto3"
+	"\tListPlans\x12!.lobster.v1.plan.ListPlansRequest\x1a\".lobster.v1.plan.ListPlansResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/api/v1/plansBAZ?github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan;planv1b\x06proto3"
 
 var (
 	file_lobster_v1_plan_proto_rawDescOnce sync.Once

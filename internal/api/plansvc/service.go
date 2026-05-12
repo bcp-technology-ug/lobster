@@ -6,11 +6,11 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/bcp-technology/lobster/internal/api/convert"
-	"github.com/bcp-technology/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/api/convert"
+	"github.com/bcp-technology-ug/lobster/internal/store"
 
-	planv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/plan"
-	planstore "github.com/bcp-technology/lobster/gen/sqlc/plan"
+	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
+	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

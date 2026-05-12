@@ -5,9 +5,9 @@ import (
 	"context"
 	"testing"
 
-	adminv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/admin"
-	configv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/config"
-	"github.com/bcp-technology/lobster/internal/api/adminsvc"
+	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
+	configv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
+	"github.com/bcp-technology-ug/lobster/internal/api/adminsvc"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

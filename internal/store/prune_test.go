@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	runstore "github.com/bcp-technology/lobster/gen/sqlc/run"
-	"github.com/bcp-technology/lobster/internal/store"
-	"github.com/bcp-technology/lobster/internal/testutil"
+	runstore "github.com/bcp-technology-ug/lobster/gen/sqlc/run"
+	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/testutil"
 )
 
 // createTerminalRun inserts a run with a terminal status and a specified

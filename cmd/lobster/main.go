@@ -8,9 +8,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/bcp-technology/lobster/internal/cli"
-	"github.com/bcp-technology/lobster/internal/log"
-	"github.com/bcp-technology/lobster/internal/ui"
+	"github.com/bcp-technology-ug/lobster/internal/cli"
+	"github.com/bcp-technology-ug/lobster/internal/log"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 func main() {

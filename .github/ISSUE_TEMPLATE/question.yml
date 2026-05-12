@@ -1,0 +1,22 @@
+name: Question / Discussion
+description: Ask a question or start a discussion.
+title: "question: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For general questions and design discussions. For bugs, use the Bug Report template. For feature proposals, use the Feature Request template.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: lobster.yaml, command output, versions — anything that helps.

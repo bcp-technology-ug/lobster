@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bcp-technology/lobster/internal/api/convert"
-	"github.com/bcp-technology/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/api/convert"
+	"github.com/bcp-technology-ug/lobster/internal/store"
 
-	integrationsv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/integrations"
-	integrationstore "github.com/bcp-technology/lobster/gen/sqlc/integrations"
+	integrationsv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations"
+	integrationstore "github.com/bcp-technology-ug/lobster/gen/sqlc/integrations"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

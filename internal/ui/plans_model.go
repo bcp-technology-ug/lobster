@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	planv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/plan"
+	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"

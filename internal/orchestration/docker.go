@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	stackv1 "github.com/bcp-technology/lobster/gen/go/lobster/v1/stack"
+	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
 )
 
 const (

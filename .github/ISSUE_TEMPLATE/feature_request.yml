@@ -1,0 +1,60 @@
+name: Feature Request
+description: Propose a new feature or enhancement.
+title: "feat: "
+labels: ["enhancement", "triage"]
+assignees: ["bencoepp"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting, search existing issues to avoid duplicates. For large changes, open a discussion first so we can align on scope before implementation work begins.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem does this solve? What use case drives the request?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? Include CLI flags, config keys, or API changes if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you consider? Why are they insufficient?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - CLI (lobster)
+        - Daemon (lobsterd)
+        - Runner / execution
+        - Parser / linter
+        - Step definitions
+        - Persistence / SQLite
+        - Docker Compose orchestration
+        - gRPC / HTTP API
+        - Reporting (console, JUnit, JSON)
+        - TUI
+        - Documentation
+        - Other
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I would be willing to submit a pull request for this.
