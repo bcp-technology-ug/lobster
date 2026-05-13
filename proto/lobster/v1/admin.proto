@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package lobster.v1.admin;
 
-option go_package = "github.com/bcp-technology/lobster/gen/go/lobster/v1/admin;adminv1";
+option go_package = "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin;adminv1";
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";

@@ -828,7 +828,7 @@ const file_lobster_v1_stack_proto_rawDesc = "" +
 	"\vEnsureStack\x12$.lobster.v1.stack.EnsureStackRequest\x1a%.lobster.v1.stack.EnsureStackResponse\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/api/v1/stack:ensure\x12\x81\x01\n" +
 	"\x0eGetStackStatus\x12'.lobster.v1.stack.GetStackStatusRequest\x1a(.lobster.v1.stack.GetStackStatusResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/stack:status\x12\x83\x01\n" +
 	"\rTeardownStack\x12&.lobster.v1.stack.TeardownStackRequest\x1a'.lobster.v1.stack.TeardownStackResponse\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/api/v1/stack:teardown\x12n\n" +
-	"\fGetStackLogs\x12%.lobster.v1.stack.GetStackLogsRequest\x1a\x19.lobster.v1.stack.LogLine\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/api/v1/stack:logs0\x01BCZAgithub.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack;stackv1b\x06proto3"
+	"\fGetStackLogs\x12%.lobster.v1.stack.GetStackLogsRequest\x1a\x19.lobster.v1.stack.LogLine\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/api/v1/stack:logs0\x01BFZDgithub.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack;stackv1b\x06proto3"
 
 var (
 	file_lobster_v1_stack_proto_rawDescOnce sync.Once

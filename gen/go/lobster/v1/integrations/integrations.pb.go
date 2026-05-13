@@ -686,7 +686,7 @@ const file_lobster_v1_integrations_proto_rawDesc = "" +
 	"\x17ListIntegrationAdapters\x127.lobster.v1.integrations.ListIntegrationAdaptersRequest\x1a8.lobster.v1.integrations.ListIntegrationAdaptersResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/integrations\x12\xb1\x01\n" +
 	"\x15GetIntegrationAdapter\x125.lobster.v1.integrations.GetIntegrationAdapterRequest\x1a6.lobster.v1.integrations.GetIntegrationAdapterResponse\")\x82\xd3\xe4\x93\x02#\x12!/api/v1/integrations/{adapter_id}\x12\xcc\x01\n" +
 	"\x1aSetIntegrationAdapterState\x12:.lobster.v1.integrations.SetIntegrationAdapterStateRequest\x1a;.lobster.v1.integrations.SetIntegrationAdapterStateResponse\"5\x82\xd3\xe4\x93\x02/:\x01*\"*/api/v1/integrations/{adapter_id}:setState\x12\xc9\x01\n" +
-	"\x1aValidateIntegrationAdapter\x12:.lobster.v1.integrations.ValidateIntegrationAdapterRequest\x1a;.lobster.v1.integrations.ValidateIntegrationAdapterResponse\"2\x82\xd3\xe4\x93\x02,\"*/api/v1/integrations/{adapter_id}:validateBQZOgithub.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations;integrationsv1b\x06proto3"
+	"\x1aValidateIntegrationAdapter\x12:.lobster.v1.integrations.ValidateIntegrationAdapterRequest\x1a;.lobster.v1.integrations.ValidateIntegrationAdapterResponse\"2\x82\xd3\xe4\x93\x02,\"*/api/v1/integrations/{adapter_id}:validateBTZRgithub.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations;integrationsv1b\x06proto3"
 
 var (
 	file_lobster_v1_integrations_proto_rawDescOnce sync.Once

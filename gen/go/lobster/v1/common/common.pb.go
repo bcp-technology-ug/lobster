@@ -1372,7 +1372,7 @@ const file_lobster_v1_common_proto_rawDesc = "" +
 	"\x15COMPRESSION_TYPE_GZIP\x10\x02\x12\x19\n" +
 	"\x15COMPRESSION_TYPE_ZSTD\x10\x03:7\n" +
 	"\x06redact\x12\x1d.google.protobuf.FieldOptions\x18ц\x03 \x01(\bR\x06redact:A\n" +
-	"\vsensitivity\x12\x1d.google.protobuf.FieldOptions\x18҆\x03 \x01(\tR\vsensitivityBEZCgithub.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common;commonv1b\x06proto3"
+	"\vsensitivity\x12\x1d.google.protobuf.FieldOptions\x18҆\x03 \x01(\tR\vsensitivityBHZFgithub.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common;commonv1b\x06proto3"
 
 var (
 	file_lobster_v1_common_proto_rawDescOnce sync.Once

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package lobster.v1.run;
 
-option go_package = "github.com/bcp-technology/lobster/gen/go/lobster/v1/run;runv1";
+option go_package = "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run;runv1";
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
