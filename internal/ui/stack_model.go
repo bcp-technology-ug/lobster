@@ -35,10 +35,10 @@ type stackLoadMsg struct {
 // Set watch=true to enable auto-refresh.
 func NewStackStatusModel(client stackv1.StackServiceClient, workspace string, watch bool) StackStatusModel {
 	cols := []table.Column{
-		{Title: "Service", Width: 20},
-		{Title: "Container ID", Width: 12},
-		{Title: "Status", Width: 10},
-		{Title: "Health", Width: 12},
+		{Title: "Service", Width: 24},
+		{Title: "Container ID", Width: 14},
+		{Title: "Status", Width: 12},
+		{Title: "Health", Width: 14},
 	}
 	t := table.New(
 		table.WithColumns(cols),
@@ -94,17 +94,17 @@ func (m StackStatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		cw := m.cardWidth()
 		tableInner := cw - 6
-		// fixed cols: ContainerID(12)+Status(10)+Health(12) = 34
-		// service name absorbs the slack; cardWidth() floor ensures svcWidth >= 20.
-		svcWidth := tableInner - 34
-		if svcWidth < 20 {
-			svcWidth = 20
+		// fixed cols: ContainerID(14)+Status(12)+Health(14) = 40
+		// service name absorbs all remaining slack so the table fills the card.
+		svcWidth := tableInner - 40
+		if svcWidth < 24 {
+			svcWidth = 24
 		}
 		m.table.SetColumns([]table.Column{
 			{Title: "Service", Width: svcWidth},
-			{Title: "Container ID", Width: 12},
-			{Title: "Status", Width: 10},
-			{Title: "Health", Width: 12},
+			{Title: "Container ID", Width: 14},
+			{Title: "Status", Width: 12},
+			{Title: "Health", Width: 14},
 		})
 		m.table.SetHeight(max(3, m.height-10))
 
@@ -202,9 +202,9 @@ func (m StackStatusModel) View() string {
 
 // cardWidth returns the outer width of the centered content card.
 func (m StackStatusModel) cardWidth() int {
-	w := m.width - 6
-	if w > 128 {
-		w = 128
+	w := m.width - 2
+	if w > 200 {
+		w = 200
 	}
 	if w < 60 {
 		w = 60

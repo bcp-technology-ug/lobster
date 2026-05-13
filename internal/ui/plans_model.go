@@ -50,12 +50,12 @@ type plansDetailLoadMsg struct {
 // NewPlansListModel creates a PlansListModel backed by the given gRPC client.
 func NewPlansListModel(client planv1.PlanServiceClient, workspace string) PlansListModel {
 	cols := []table.Column{
-		{Title: "ID", Width: 8},
-		{Title: "Workspace", Width: 8},
-		{Title: "Profile", Width: 10},
-		{Title: "Scenarios", Width: 8},
-		{Title: "Est. Duration", Width: 10},
-		{Title: "Created", Width: 10},
+		{Title: "ID", Width: 10},
+		{Title: "Workspace", Width: 18},
+		{Title: "Profile", Width: 12},
+		{Title: "Scenarios", Width: 12},
+		{Title: "Est. Duration", Width: 14},
+		{Title: "Created", Width: 14},
 	}
 	t := table.New(
 		table.WithColumns(cols),
@@ -113,8 +113,8 @@ func (m PlansListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width = msg.Width
 			m.height = msg.Height
 			if m.detail.ready {
-				m.detail.viewport.Width = m.cardWidth() - 10
-				m.detail.viewport.Height = m.height - 12
+				m.detail.viewport.Width = m.cardWidth() - 6
+				m.detail.viewport.Height = max(3, m.height-8)
 			}
 		}
 		if m.detail.ready {
@@ -131,19 +131,27 @@ func (m PlansListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		cw := m.cardWidth()
 		tableInner := cw - 6
-		// fixed cols: ID(8)+Profile(10)+Scenarios(8)+EstDur(10)+Created(10) = 46
-		// workspace absorbs the slack; cardWidth() floor ensures wsWidth >= 8.
-		wsWidth := tableInner - 46
-		if wsWidth < 8 {
-			wsWidth = 8
+		// Workspace is capped at 24; any leftover space is distributed evenly
+		// across the other 5 columns so the table always fills the card.
+		const idW, prW, scW, durW, crtW = 10, 12, 12, 14, 14
+		wsWidth := tableInner - (idW + prW + scW + durW + crtW)
+		if wsWidth < 12 {
+			wsWidth = 12
+		}
+		if wsWidth > 24 {
+			wsWidth = 24
+		}
+		perCol := (tableInner - (idW + wsWidth + prW + scW + durW + crtW)) / 5
+		if perCol < 0 {
+			perCol = 0
 		}
 		m.table.SetColumns([]table.Column{
-			{Title: "ID", Width: 8},
+			{Title: "ID", Width: idW + perCol},
 			{Title: "Workspace", Width: wsWidth},
-			{Title: "Profile", Width: 10},
-			{Title: "Scenarios", Width: 8},
-			{Title: "Est. Duration", Width: 10},
-			{Title: "Created", Width: 10},
+			{Title: "Profile", Width: prW + perCol},
+			{Title: "Scenarios", Width: scW + perCol},
+			{Title: "Est. Duration", Width: durW + perCol},
+			{Title: "Created", Width: crtW + perCol},
 		})
 		m.table.SetHeight(max(3, m.height-10))
 
@@ -199,7 +207,7 @@ func (m PlansListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			return m, nil
 		}
-		vp := viewport.New(m.cardWidth()-10, max(3, m.height-12))
+		vp := viewport.New(m.cardWidth()-6, max(3, m.height-8))
 		vp.SetContent(buildPlanContent(msg.plan))
 		m.detail = &planDetailModel{plan: msg.plan, viewport: vp, ready: true}
 		return m, nil
@@ -293,9 +301,9 @@ func (m PlansListModel) View() string {
 
 // cardWidth returns the outer width of the centered content card.
 func (m PlansListModel) cardWidth() int {
-	w := m.width - 6
-	if w > 128 {
-		w = 128
+	w := m.width - 2
+	if w > 200 {
+		w = 200
 	}
 	if w < 60 {
 		w = 60

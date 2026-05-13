@@ -41,12 +41,12 @@ type runsLoadMsg struct {
 // NewRunsListModel creates a RunsListModel with the given gRPC client.
 func NewRunsListModel(client runv1.RunServiceClient, workspace string) RunsListModel {
 	cols := []table.Column{
-		{Title: "ID", Width: 8},
-		{Title: "Status", Width: 10},
-		{Title: "Workspace", Width: 8},
-		{Title: "Scenarios", Width: 9},
-		{Title: "Duration", Width: 8},
-		{Title: "Created", Width: 11},
+		{Title: "ID", Width: 10},
+		{Title: "Status", Width: 12},
+		{Title: "Workspace", Width: 18},
+		{Title: "Scenarios", Width: 12},
+		{Title: "Duration", Width: 11},
+		{Title: "Created", Width: 14},
 	}
 	t := table.New(
 		table.WithColumns(cols),
@@ -115,21 +115,30 @@ func (m RunsListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		cw := m.cardWidth()
 		tableInner := cw - 6 // subtract border(2) + padding(4)
-		// fixed cols: ID(8)+Status(10)+Scenarios(9)+Duration(8)+Created(11) = 46
-		// workspace absorbs the slack; cardWidth() floor ensures wsWidth >= 8.
-		wsWidth := tableInner - 46
-		if wsWidth < 8 {
-			wsWidth = 8
+		// Workspace is capped at 24; any leftover space is distributed evenly
+		// across the other 5 columns so the table always fills the card.
+		const idW, stW, scW, durW, crtW = 10, 12, 12, 11, 14
+		wsWidth := tableInner - (idW + stW + scW + durW + crtW)
+		if wsWidth < 12 {
+			wsWidth = 12
+		}
+		if wsWidth > 24 {
+			wsWidth = 24
+		}
+		perCol := (tableInner - (idW + stW + wsWidth + scW + durW + crtW)) / 5
+		if perCol < 0 {
+			perCol = 0
 		}
 		m.table.SetColumns([]table.Column{
-			{Title: "ID", Width: 8},
-			{Title: "Status", Width: 10},
+			{Title: "ID", Width: idW + perCol},
+			{Title: "Status", Width: stW + perCol},
 			{Title: "Workspace", Width: wsWidth},
-			{Title: "Scenarios", Width: 9},
-			{Title: "Duration", Width: 8},
-			{Title: "Created", Width: 11},
+			{Title: "Scenarios", Width: scW + perCol},
+			{Title: "Duration", Width: durW + perCol},
+			{Title: "Created", Width: crtW + perCol},
 		})
 		m.table.SetHeight(max(3, m.height-10))
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.filtering {
@@ -244,6 +253,11 @@ func (m *RunsListModel) applyRebuild() {
 	}
 	m.filtered = filtered
 	m.table.SetRows(rows)
+	// Cap the table height to actual row count so empty/sparse lists don't
+	// expand to fill all available space with blank rows.
+	maxH := max(3, m.height-10)
+	wantH := max(3, len(rows)+2)
+	m.table.SetHeight(min(wantH, maxH))
 }
 
 func (m RunsListModel) View() string {
@@ -284,9 +298,9 @@ func (m RunsListModel) View() string {
 
 // cardWidth returns the outer width of the centered content card.
 func (m RunsListModel) cardWidth() int {
-	w := m.width - 6
-	if w > 128 {
-		w = 128
+	w := m.width - 2
+	if w > 200 {
+		w = 200
 	}
 	if w < 60 {
 		w = 60

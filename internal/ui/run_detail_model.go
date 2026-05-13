@@ -32,8 +32,9 @@ func (m *RunDetailModel) SetSize(w, h int) {
 	m.width = w
 	m.height = h
 	if m.ready {
-		m.viewport.Width = w
-		m.viewport.Height = h - 4
+		cw := m.cardWidth()
+		m.viewport.Width = cw - 6
+		m.viewport.Height = max(3, h-8)
 	}
 }
 
@@ -47,7 +48,7 @@ func (m RunDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case runDetailReadyMsg:
 		cw := m.cardWidth()
-		m.viewport = viewport.New(cw-10, max(3, m.height-12))
+		m.viewport = viewport.New(cw-6, max(3, m.height-8))
 		m.viewport.SetContent(m.buildContent())
 		m.ready = true
 
@@ -56,8 +57,8 @@ func (m RunDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		if m.ready {
 			cw := m.cardWidth()
-			m.viewport.Width = cw - 10
-			m.viewport.Height = max(3, m.height-12)
+			m.viewport.Width = cw - 6
+			m.viewport.Height = max(3, m.height-8)
 			m.viewport.SetContent(m.buildContent())
 		}
 
@@ -80,9 +81,9 @@ func (m RunDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m RunDetailModel) cardWidth() int {
-	w := m.width - 6
-	if w > 128 {
-		w = 128
+	w := m.width - 2
+	if w > 200 {
+		w = 200
 	}
 	if w < 60 {
 		w = 60

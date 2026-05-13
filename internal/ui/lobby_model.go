@@ -270,9 +270,9 @@ func (m LobbyModel) renderFooter() string {
 
 // cardWidth returns the outer width of the centered content card.
 func (m LobbyModel) cardWidth() int {
-	w := m.width - 6
-	if w > 128 {
-		w = 128
+	w := m.width - 2
+	if w > 200 {
+		w = 200
 	}
 	if w < 60 {
 		w = 60
