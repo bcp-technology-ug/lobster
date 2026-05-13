@@ -438,7 +438,7 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	// Choose TUI or console.
 	var runErr error
 	if interactive {
-		runErr = runWithTUI(ctx, r, req, extraReporters, verbosity, cmd)
+		runErr = runWithTUI(ctx, r, req, extraReporters, capture, verbosity, cmd)
 	} else {
 		runErr = runWithConsole(ctx, r, req, extraReporters, verbosity, reportVerbose, cmd)
 	}
@@ -457,52 +457,78 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	return runErr
 }
 
-// runWithTUI runs the test suite with a Bubbletea live-updating TUI.
+// runWithTUI runs the test suite with a Bubbletea live-updating TUI, then
+// shows a full-screen result page. If the user chooses to re-run, the whole
+// cycle repeats. Returns a non-nil error only for infrastructure / runner
+// failures; scenario failures are represented as ExitScenarioFailure.
 func runWithTUI(
 	ctx context.Context,
 	r *runner.Runner,
 	req *runv1.RunSyncRequest,
 	extra []reports.Reporter,
+	capture *ui.CaptureReporter,
 	_ int,
 	cmd *cobra.Command,
 ) error {
-	model := ui.NewRunModel()
-	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx))
+	for {
+		// Reset capture so a rerun starts fresh.
+		capture.Result = nil
 
-	tuiReporter := ui.NewTUIReporter(p)
+		// ── Phase 1: live run TUI ──────────────────────────────────────
+		model := ui.NewRunModel()
+		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx))
 
-	allReporters := []reports.Reporter{tuiReporter}
-	allReporters = append(allReporters, extra...)
-	r = r.WithReporter(reports.NewMultiReporter(allReporters...))
+		tuiReporter := ui.NewTUIReporter(p)
+		allReporters := []reports.Reporter{tuiReporter}
+		allReporters = append(allReporters, extra...)
+		r = r.WithReporter(reports.NewMultiReporter(allReporters...))
 
-	runErrCh := make(chan error, 1)
-	go func() {
-		stream := &noopStream{ctx: ctx}
-		err := r.RunSync(ctx, req, stream)
-		runErrCh <- err
-		if err != nil {
-			p.Send(ui.RunnerErrMsg{Err: err})
+		runErrCh := make(chan error, 1)
+		go func() {
+			stream := &noopStream{ctx: ctx}
+			err := r.RunSync(ctx, req, stream)
+			runErrCh <- err
+			if err != nil {
+				p.Send(ui.RunnerErrMsg{Err: err})
+			}
+		}()
+
+		if _, tuiErr := p.Run(); tuiErr != nil {
+			return tuiErr
 		}
-	}()
+		runErr := <-runErrCh
 
-	finalModel, tuiErr := p.Run()
-	if tuiErr != nil {
-		return tuiErr
-	}
+		// ── Phase 2: result screen ─────────────────────────────────────
+		resultModel := ui.NewRunResultModel(capture.Result, runErr)
+		rp := tea.NewProgram(resultModel, tea.WithAltScreen(), tea.WithContext(ctx))
+		finalModel, rpErr := rp.Run()
+		if rpErr != nil {
+			// Result screen failed to start; fall through to error handling.
+			if runErr != nil {
+				return &ExitError{Code: exitCodeForRunError(runErr)}
+			}
+			if capture.Result != nil && capture.Result.Failed > 0 {
+				return &ExitError{Code: ExitScenarioFailure}
+			}
+			return nil
+		}
 
-	runErr := <-runErrCh
-	if runErr != nil {
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), ui.RenderError("Run failed",
-			runErr.Error(), "", ""))
-		return &ExitError{Code: exitCodeForRunError(runErr)}
-	}
+		action := finalModel.(ui.RunResultModel).Action()
+		if action == ui.ResultActionRerun {
+			continue
+		}
 
-	if fm, ok := finalModel.(ui.RunModel); ok {
-		if s := fm.Summary(); s != nil && s.Failed > 0 {
+		// User quit — propagate run errors as exit codes.
+		if runErr != nil {
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), ui.RenderError("Run failed",
+				runErr.Error(), "", ""))
+			return &ExitError{Code: exitCodeForRunError(runErr)}
+		}
+		if capture.Result != nil && capture.Result.Failed > 0 {
 			return &ExitError{Code: ExitScenarioFailure}
 		}
+		return nil
 	}
-	return nil
 }
 
 // runWithConsole runs the test suite with plain console output (CI / non-TTY).
