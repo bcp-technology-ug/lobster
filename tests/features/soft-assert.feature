@@ -1,3 +1,4 @@
+@covers:cli:run
 Feature: Soft-assert mode collects multiple failures
   As a test author
   I want --soft-assert to collect all assertion failures before failing the scenario

@@ -1,4 +1,4 @@
-@daemon
+@daemon @covers:AdminService.GetHealth @covers:RunService.ListRuns @covers:PlanService.ListPlans @covers:GET:/api/v1/admin/health @covers:GET:/api/v1/runs @covers:GET:/api/v1/plans
 Feature: lobsterd — HTTP/JSON gateway
   As a developer
   I want the HTTP gateway to proxy the gRPC API correctly

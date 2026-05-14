@@ -1,3 +1,4 @@
+@covers:cli:run
 Feature: lobster run — quarantine tag support
   As a developer
   I want scenarios tagged with a quarantine marker to be demoted to skipped

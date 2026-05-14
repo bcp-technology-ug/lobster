@@ -1,3 +1,4 @@
+@covers:cli:init
 Feature: lobster init — project initialisation
   As a developer
   I want lobster init to scaffold a complete project from flags

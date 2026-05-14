@@ -1,3 +1,4 @@
+@covers:cli:config
 Feature: lobster config command
   As a developer
   I want lobster config to display the effective configuration

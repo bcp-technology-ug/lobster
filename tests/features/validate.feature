@@ -1,3 +1,4 @@
+@covers:cli:validate
 Feature: lobster validate command
   As a developer
   I want lobster validate to catch Gherkin problems

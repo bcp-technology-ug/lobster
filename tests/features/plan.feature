@@ -1,3 +1,4 @@
+@covers:cli:plan @covers:PlanService.Plan @covers:PlanService.ListPlans
 Feature: lobster plan command
   As a developer
   I want lobster plan to show which scenarios will run

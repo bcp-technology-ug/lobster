@@ -1,4 +1,4 @@
-@docker
+@docker @covers:RunService.GetRun @covers:RunService.ListRuns
 Feature: lobsterd Docker Compose — persistence and restart resilience
   As a developer
   I want the SQLite database to survive container restarts

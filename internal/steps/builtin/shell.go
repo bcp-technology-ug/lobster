@@ -2,6 +2,8 @@ package builtin
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -86,6 +88,14 @@ func registerShellSteps(r *steps.Registry) error {
 		{
 			`I store the output in variable "([^"]+)"`,
 			stepStoreOutput,
+		},
+		{
+			`I generate a unique workspace id`,
+			stepGenerateWorkspaceID,
+		},
+		{
+			`the output should not be empty`,
+			stepAssertOutputNotEmpty,
 		},
 	}
 	for _, d := range defs {
@@ -289,5 +299,30 @@ func stepAssertOutputIsJSON(ctx *steps.ScenarioContext, _ ...string) error {
 
 func stepStoreOutput(ctx *steps.ScenarioContext, args ...string) error {
 	ctx.Variables[args[0]] = strings.TrimRight(ctx.Variables[varShellStdout], "\n")
+	return nil
+}
+
+// stepGenerateWorkspaceID creates a cryptographically random 8-byte hex string
+// and stores it in ctx.Variables["__workspace_id"]. This is used to isolate
+// daemon-facing scenarios so they don't share state across test runs.
+func stepAssertOutputNotEmpty(ctx *steps.ScenarioContext, _ ...string) error {
+	output := ctx.Variables[varShellStdout]
+	if strings.TrimSpace(output) == "" {
+		e := fmt.Errorf("expected output to not be empty")
+		if ctx.SoftAssertMode {
+			ctx.AddAssertionError(e)
+			return nil
+		}
+		return e
+	}
+	return nil
+}
+
+func stepGenerateWorkspaceID(ctx *steps.ScenarioContext, _ ...string) error {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Errorf("generate workspace id: %w", err)
+	}
+	ctx.Variables["__workspace_id"] = "test-" + hex.EncodeToString(b)
 	return nil
 }

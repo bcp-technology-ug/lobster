@@ -1,4 +1,4 @@
-@docker
+@docker @covers:AdminService.GetHealth @covers:AdminService.GetCapabilities
 Feature: lobsterd Docker Compose — daemon startup and health
   As a developer
   I want docker compose to start lobsterd and expose a healthy daemon

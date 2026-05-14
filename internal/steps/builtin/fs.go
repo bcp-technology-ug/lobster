@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,6 +54,10 @@ func registerFSSteps(r *steps.Registry) error {
 		{
 			`I create the file "((?:[^"\\]|\\.)+)" containing "((?:[^"\\]|\\.)+)"`,
 			stepCreateFileInline,
+		},
+		{
+			`the file "((?:[^"\\]|\\.)+)" should contain valid JSON`,
+			stepFileContainsValidJSON,
 		},
 	}
 	for _, d := range defs {
@@ -178,6 +183,25 @@ func writeFile(path, content string) error {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil { //nolint:gosec // test helper
 		return fmt.Errorf("write file %q: %w", path, err)
+	}
+	return nil
+}
+
+// stepFileContainsValidJSON handles: the file "path" should contain valid JSON
+func stepFileContainsValidJSON(ctx *steps.ScenarioContext, args ...string) error {
+	path := args[0]
+	data, err := os.ReadFile(path) //nolint:gosec // test helper
+	if err != nil {
+		return fmt.Errorf("read file %q: %w", path, err)
+	}
+	var v interface{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		e := fmt.Errorf("file %q does not contain valid JSON: %w", path, err)
+		if ctx.SoftAssertMode {
+			ctx.AddAssertionError(e)
+			return nil
+		}
+		return e
 	}
 	return nil
 }

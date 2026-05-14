@@ -1,3 +1,4 @@
+@covers:cli:plan @covers:PlanService.Plan
 Feature: lobster plan artifact
   As a developer
   I want to save a plan and then execute from it

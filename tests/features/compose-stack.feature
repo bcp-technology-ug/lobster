@@ -1,4 +1,4 @@
-@integration
+@integration @covers:cli:stack @covers:StackService.EnsureStack @covers:StackService.GetStackStatus @covers:StackService.TeardownStack
 Feature: Docker Compose stack orchestration
   As a developer
   I want lobster run to bring up a Docker Compose stack before tests and tear it down after

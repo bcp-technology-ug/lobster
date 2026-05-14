@@ -1,3 +1,4 @@
+@covers:cli:run
 Feature: lobster run — persistence retention policy
   As a developer
   I want lobster to prune old run records after a run completes

@@ -1,4 +1,4 @@
-@daemon
+@daemon @covers:RunService.RunAsync @covers:cli:run:watch @covers:RunService.CancelRun @covers:RunService.StreamRunEvents
 Feature: lobsterd — async run lifecycle
   As a developer
   I want to submit async runs to the daemon and use run subcommands to manage them

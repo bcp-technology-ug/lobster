@@ -1,3 +1,4 @@
+@covers:cli:validate
 Feature: lobster validate — advanced scenarios
   As a developer
   I want lobster validate to provide detailed feedback on feature files

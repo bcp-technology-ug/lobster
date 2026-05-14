@@ -1,3 +1,4 @@
+@covers:cli:lint
 Feature: lobster lint — advanced scenarios
   As a developer
   I want lobster lint to report all quality issues comprehensively

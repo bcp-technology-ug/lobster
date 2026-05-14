@@ -1,3 +1,4 @@
+@covers:cli:config
 Feature: lobster config — show and validate configuration
   As a developer
   I want lobster config to display the active configuration clearly

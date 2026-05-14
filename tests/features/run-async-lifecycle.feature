@@ -1,4 +1,4 @@
-@daemon
+@daemon @covers:RunService.RunAsync @covers:cli:run:watch @covers:cli:run:status @covers:RunService.StreamRunEvents
 Feature: Async run lifecycle
   As a developer
   I want async run submission, watching, status inspection, and cancellation to work end-to-end

@@ -1,3 +1,4 @@
+@covers:cli:init
 Feature: lobster init command
   As a developer
   I want lobster init to scaffold a new test project

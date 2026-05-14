@@ -1,3 +1,4 @@
+@covers:cli:run
 Feature: lobster run — OpenTelemetry tracing
   As a developer
   I want lobster run to emit traces when an OTel endpoint is configured

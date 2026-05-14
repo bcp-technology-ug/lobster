@@ -1,3 +1,4 @@
+@covers:cli:run @covers:cli:plan
 Feature: Scenario Outline with Examples
   As a test author
   I want to use Scenario Outline with Examples tables

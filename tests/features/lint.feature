@@ -1,3 +1,4 @@
+@covers:cli:lint
 Feature: lobster lint command
   As a developer
   I want lobster lint to enforce quality rules on feature files

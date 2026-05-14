@@ -1,3 +1,4 @@
+@covers:cli:run
 Feature: lobster run command
   As a developer
   I want lobster run to execute scenarios and report results correctly

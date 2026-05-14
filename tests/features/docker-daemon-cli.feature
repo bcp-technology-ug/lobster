@@ -1,4 +1,4 @@
-@daemon
+@daemon @covers:cli:run @covers:cli:run:cancel
 Feature: lobsterd — CLI connectivity
   As a developer
   I want the lobster CLI to connect to a running lobsterd daemon

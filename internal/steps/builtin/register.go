@@ -26,6 +26,9 @@ func Register(r *steps.Registry) error {
 	if err := registerFSSteps(r); err != nil {
 		return err
 	}
+	if err := registerAssertSteps(r); err != nil {
+		return err
+	}
 	return nil
 }
 

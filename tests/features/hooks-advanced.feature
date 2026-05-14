@@ -1,3 +1,4 @@
+@covers:cli:run
 Feature: Advanced hook behaviour
   As a test author
   I want hooks to be resilient and composable

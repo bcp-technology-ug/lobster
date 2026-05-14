@@ -1,3 +1,4 @@
+@covers:cli:run
 Feature: lobster run — flags and execution control
   As a developer
   I want lobster run to honour all execution flags

@@ -1,3 +1,4 @@
+@covers:cli:plan @covers:PlanService.Plan @covers:PlanService.GetPlan
 Feature: lobster plan — advanced scenarios
   As a developer
   I want lobster plan to enumerate matching scenarios with full metadata

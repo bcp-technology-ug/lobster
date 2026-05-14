@@ -1,3 +1,4 @@
+@covers:cli:run
 Feature: Hook lifecycle basics
   As a test author
   I want BeforeSuite, AfterSuite, BeforeScenario, and AfterScenario hooks to run

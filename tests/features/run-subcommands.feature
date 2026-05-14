@@ -1,3 +1,4 @@
+@covers:cli:run:watch @covers:cli:run:status @covers:cli:run:cancel @covers:RunService.CancelRun
 Feature: lobster run subcommands — status, watch, cancel
   As a developer
   I want run subcommands to fail helpfully when required flags are missing
