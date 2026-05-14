@@ -41,8 +41,8 @@ func NewRootCommand() *cobra.Command {
 		Use:     "lobster",
 		Short:   "CLI-first end-to-end BDD runner",
 		Version: Version,
-		Long: ui.StyleHeading.Render("lobster") + " — contract-driven BDD end-to-end testing\n\n" +
-			ui.StyleMuted.Render("Run feature scenarios against real infrastructure with full observability.\n") +
+		Long: ui.LogoBanner() + "\n\n" +
+			ui.StyleMuted.Render("Contract-driven BDD end-to-end testing against real infrastructure.") + "\n" +
 			ui.StyleMuted.Render("Docs: https://github.com/bcp-technology-ug/lobster"),
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -50,6 +50,8 @@ func NewRootCommand() *cobra.Command {
 			return initViper(v, cfgFile)
 		},
 	}
+
+	root.SetVersionTemplate(ui.LogoVersion("lobster", Version) + "\n")
 
 	root.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path (defaults to ./lobster.yaml)")
 

@@ -27,6 +27,8 @@ func newInitCommand(_ *viper.Viper) *cobra.Command {
 		Long:  "Create lobster.yaml, .lobster/ directory, and a sample feature file in the target path.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), ui.LogoSmall())
+
 			root := "."
 			if len(args) > 0 {
 				root = args[0]

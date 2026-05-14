@@ -119,9 +119,8 @@ func (m LobbyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// JoinVertical chrome: blank(1) + logo + blank(1) + tabBar(1) + blank(1) + pane + blank(1) + footer(1).
-		// Logo is 1 line when no workspace is set, 2 lines when workspace is shown.
-		// Total chrome = 6 + logoLines, so inner height = terminal height - 6 - logoLines.
+		// JoinVertical chrome: blank(1) + logo(1) + blank(1) + tabBar(1) + blank(1) + pane + blank(1) + footer(1).
+		// Add 1 more line when a workspace label is shown below the logo.
 		logoLines := 1
 		if m.workspace != "" {
 			logoLines = 2
@@ -204,7 +203,7 @@ func (m LobbyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m LobbyModel) View() string {
 	// ── Logo ──────────────────────────────────────────────────────────────
-	logoLine := TUILogoStyle.Render("🦞  lobster")
+	logoLine := LogoTUI()
 	if m.workspace != "" {
 		logoLine += "\n" + StyleMuted.Render("workspace: "+m.workspace)
 	}

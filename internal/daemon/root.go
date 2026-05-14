@@ -26,6 +26,7 @@ import (
 	"github.com/bcp-technology-ug/lobster/internal/steps"
 	"github.com/bcp-technology-ug/lobster/internal/steps/builtin"
 	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 
 	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
 	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
@@ -72,6 +73,11 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()
+
+			// Print startup banner.
+			fmt.Fprintln(cmd.OutOrStdout(), ui.LogoBig())
+			fmt.Fprintln(cmd.OutOrStdout(), ui.StyleMuted.Render("lobsterd  "+version))
+			fmt.Fprintln(cmd.OutOrStdout())
 
 			// Retrieve the logger injected by main and attach it to the start context.
 			logger := lobsterlog.FromContext(cmd.Context())

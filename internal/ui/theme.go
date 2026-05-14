@@ -3,15 +3,16 @@ package ui
 import "github.com/charmbracelet/lipgloss"
 
 // Adaptive colors: look great on both dark and light terminals.
+// Primary/secondary use the lobster red-orange brand palette.
 var (
-	colorPrimary   = lipgloss.AdaptiveColor{Light: "#6D28D9", Dark: "#A78BFA"}
-	colorSecondary = lipgloss.AdaptiveColor{Light: "#4F46E5", Dark: "#818CF8"}
+	colorPrimary   = lipgloss.AdaptiveColor{Light: "#C2410C", Dark: "#F97316"} // lobster orange
+	colorSecondary = lipgloss.AdaptiveColor{Light: "#9A3412", Dark: "#FDBA74"} // shell amber
 	colorSuccess   = lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#4ADE80"}
 	colorWarning   = lipgloss.AdaptiveColor{Light: "#B45309", Dark: "#FCD34D"}
 	colorError     = lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#FCA5A5"}
 	colorMuted     = lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#9CA3AF"}
 	colorBorder    = lipgloss.AdaptiveColor{Light: "#D1D5DB", Dark: "#374151"}
-	colorHighlight = lipgloss.AdaptiveColor{Light: "#EDE9FE", Dark: "#1E1B4B"}
+	colorHighlight = lipgloss.AdaptiveColor{Light: "#FFF7ED", Dark: "#431407"} // warm orange tint
 )
 
 // Text styles — compose these when building command output.
@@ -66,8 +67,8 @@ const (
 // TUI design tokens — used exclusively by the lobby and pane models.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// colorAccent is a cyan complement to the violet primary, used in the TUI.
-var colorAccent = lipgloss.AdaptiveColor{Light: "#0891B2", Dark: "#22D3EE"} //nolint:unused
+// colorAccent is a teal complement to the orange primary, used in the TUI.
+var colorAccent = lipgloss.AdaptiveColor{Light: "#0E7490", Dark: "#22D3EE"} //nolint:unused
 
 // TUI layout styles.
 var (
@@ -86,7 +87,7 @@ var (
 	// TUICardStyle wraps the main content area of each TUI pane.
 	TUICardStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.AdaptiveColor{Light: "#7C3AED", Dark: "#6D28D9"}).
+			BorderForeground(lipgloss.AdaptiveColor{Light: "#C2410C", Dark: "#EA580C"}).
 			Padding(1, 2)
 
 	// TUICardHeaderStyle renders the pane title inside a card.

@@ -152,9 +152,18 @@ func (m RunResultModel) listView() string {
 
 func (m RunResultModel) cardView() string {
 	cw := m.cardWidth()
-	divider := StyleMuted.Render(strings.Repeat("─", cw))
 
-	var inner strings.Builder
+	// Art column is pinned to the right. leftWidth fills the rest so the
+	// two columns exactly cover the card's inner content area.
+	const artColWidth = 17
+	leftWidth := cw - 6 - artColWidth // 6 = 2 borders + 2×2 horiz padding
+	if leftWidth < 24 {
+		leftWidth = 24
+	}
+
+	// Full-width divider lives OUTSIDE the left column so it spans the card.
+	// Width(cw) includes Padding(1,2) = 2 chars each side, so text area = cw-4.
+	divider := StyleMuted.Render(strings.Repeat("─", cw-4))
 
 	// ── Status ───────────────────────────────────────────────────────────
 	var statusLine string
@@ -168,34 +177,45 @@ func (m RunResultModel) cardView() string {
 	default:
 		statusLine = StyleSuccess.Render(IconCheck + "  Passed")
 	}
-	inner.WriteString(StyleBold.Render(statusLine) + "\n\n")
 
-	// ── Meta ─────────────────────────────────────────────────────────────
+	// ── Meta (left column only — no divider/stats here) ──────────────────
+	var meta strings.Builder
+	meta.WriteString(StyleBold.Render(statusLine) + "\n\n")
 	if m.result != nil {
 		runIDShort := m.result.RunID
 		if len(runIDShort) > 8 {
 			runIDShort = runIDShort[:8]
 		}
-		inner.WriteString(StyleLabel.Render("Run ID:   ") + runIDShort + "\n")
+		meta.WriteString(StyleLabel.Render("Run ID:   ") + runIDShort + "\n")
 		if !m.result.StartedAt.IsZero() {
-			inner.WriteString(StyleLabel.Render("Started:  ") + m.result.StartedAt.Format("02 Jan 2006 15:04:05") + "\n")
-			inner.WriteString(StyleLabel.Render("Ended:    ") + m.result.StartedAt.Add(m.result.Duration).Format("02 Jan 2006 15:04:05") + "\n")
+			meta.WriteString(StyleLabel.Render("Started:  ") + m.result.StartedAt.Format("02 Jan 2006 15:04:05") + "\n")
+			meta.WriteString(StyleLabel.Render("Ended:    ") + m.result.StartedAt.Add(m.result.Duration).Format("02 Jan 2006 15:04:05") + "\n")
 		}
-		inner.WriteString(StyleLabel.Render("Duration: ") + formatRunDuration(m.result.Duration) + "\n")
-		inner.WriteString("\n")
+		meta.WriteString(StyleLabel.Render("Duration: ") + formatRunDuration(m.result.Duration))
+	} else if m.runErr != nil {
+		meta.WriteString(StyleError.Render(m.runErr.Error()))
+	}
 
-		// ── Stats ─────────────────────────────────────────────────────────
-		inner.WriteString(divider + "\n")
-		inner.WriteString(fmt.Sprintf(
+	// ── Two-column top section: meta left, lobster flush right ───────────
+	leftCol := lipgloss.NewStyle().Width(leftWidth).Render(meta.String())
+	artCol := lipgloss.NewStyle().Width(artColWidth).Render(LogoSmall())
+	topSection := lipgloss.JoinHorizontal(lipgloss.Center, leftCol, artCol)
+
+	// ── Card body: top section + full-width stats below ───────────────────
+	var body strings.Builder
+	body.WriteString(topSection)
+	if m.result != nil {
+		stats := fmt.Sprintf(
 			"%s  %s  %s  %s",
 			StyleBold.Render(fmt.Sprintf("%d total", m.result.Total)),
 			StyleSuccess.Render(fmt.Sprintf("%d passed", m.result.Passed)),
 			resultFailStyle(m.result.Failed, fmt.Sprintf("%d failed", m.result.Failed)),
 			StyleMuted.Render(fmt.Sprintf("%d skipped", m.result.Skipped)),
-		) + "\n")
-		inner.WriteString(divider + "\n")
-	} else if m.runErr != nil {
-		inner.WriteString(StyleError.Render(m.runErr.Error()) + "\n")
+		)
+		body.WriteString("\n\n")
+		body.WriteString(divider + "\n")
+		body.WriteString(stats + "\n")
+		body.WriteString(divider)
 	}
 
 	// ── Card border ───────────────────────────────────────────────────────
@@ -208,7 +228,7 @@ func (m RunResultModel) cardView() string {
 		BorderForeground(borderColor).
 		Padding(1, 2).
 		Width(cw).
-		Render(inner.String())
+		Render(body.String())
 
 	// ── Action bar ────────────────────────────────────────────────────────
 	copiedHint := ""
