@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Codecov configuration
+#
+# Docs: https://docs.codecov.com/docs/codecov-yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+coverage:
+  # Require coverage to stay within 2% of the target before flagging a PR.
+  precision: 2
+  round: down
+  range: "70...100"
+
+  status:
+    project:
+      default:
+        # Fail the PR check only if coverage drops more than 2%.
+        threshold: 2%
+        target: auto
+    patch:
+      default:
+        # New code added in a PR must reach at least 60% coverage.
+        target: 60%
+        threshold: 5%
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: true   # Only comment when coverage changes
+
+ignore:
+  # Generated code — no coverage requirement.
+  - "gen/**"
+  # SQL query files.
+  - "sql/**"
+  # Migration files.
+  - "migrations/**"
+  # Proto definitions.
+  - "proto/**"
+  # Test utilities — not required to have their own tests.
+  - "internal/testutil/**"
+  # Main entrypoints — trivial wiring, covered by integration tests.
+  - "cmd/**"

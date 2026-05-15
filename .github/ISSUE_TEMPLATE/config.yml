@@ -3,3 +3,9 @@ contact_links:
   - name: Documentation
     url: https://github.com/bcp-technology-ug/lobster/tree/main/docs
     about: Read the docs before opening an issue.
+  - name: Ask a question or start a discussion
+    url: https://github.com/bcp-technology-ug/lobster/discussions/new?category=q-a
+    about: Use Discussions for "how do I…" questions and ideas.
+  - name: Support
+    url: https://github.com/bcp-technology-ug/lobster/blob/main/SUPPORT.md
+    about: See all support options.

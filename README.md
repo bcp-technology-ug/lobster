@@ -20,7 +20,14 @@ Development model:
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev)
 [![CI](https://github.com/bcp-technology-ug/lobster/actions/workflows/ci.yml/badge.svg)](https://github.com/bcp-technology-ug/lobster/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/bcp-technology-ug/lobster)](https://github.com/bcp-technology-ug/lobster/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bcp-technology-ug/lobster)](https://goreportcard.com/report/github.com/bcp-technology-ug/lobster)
+[![codecov](https://codecov.io/gh/bcp-technology-ug/lobster/branch/main/graph/badge.svg)](https://codecov.io/gh/bcp-technology-ug/lobster)
+[![CodeQL](https://github.com/bcp-technology-ug/lobster/actions/workflows/codeql.yml/badge.svg)](https://github.com/bcp-technology-ug/lobster/actions/workflows/codeql.yml)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
+
+---
+
+![lobster demo — validate, plan, and run 335 scenarios from lobster's own self-test suite](docs/demo.gif)
 
 ---
 
@@ -158,12 +165,16 @@ Lobster `v0.1.0` is the initial public release.
 | [Integrations](docs/integrations.md) | Service adapters (Keycloak and beyond) |
 | [Testing strategy](docs/testing.md) | Unit, integration, E2E, and dogfooding policy |
 | [CI/CD](docs/ci-cd.md) | GitHub Actions, GitLab CI, exit codes, reports |
+| [Roadmap](ROADMAP.md) | What is planned for v0.2, v0.3, and v1.0 |
+| [Support](SUPPORT.md) | How to get help, report bugs, and request features |
 
 ---
 
 ## Contributing
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+Have a question or need help? Open a [GitHub Discussion](https://github.com/bcp-technology-ug/lobster/discussions) or read [SUPPORT.md](SUPPORT.md) for all support options.
 
 ---
 

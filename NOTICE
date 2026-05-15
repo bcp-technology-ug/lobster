@@ -1,0 +1,29 @@
+lobster
+Copyright 2026 BCP Technology
+
+This product includes software developed by the lobster contributors
+(https://github.com/bcp-technology-ug/lobster).
+
+---
+
+This product embeds SQLite via mattn/go-sqlite3.
+SQLite is in the public domain. No attribution required.
+See https://www.sqlite.org/copyright.html
+
+This product uses the following third-party Go modules, each with
+their own licence. See go.sum and the vendor directories of each
+module for full licence texts.
+
+  github.com/charmbracelet/*          — MIT Licence
+  github.com/cucumber/gherkin         — MIT Licence
+  github.com/cucumber/messages        — MIT Licence
+  github.com/docker/docker            — Apache 2.0 Licence
+  github.com/golang-migrate/migrate   — MIT Licence
+  github.com/grpc-ecosystem/grpc-gateway — BSD 3-Clause Licence
+  github.com/mattn/go-sqlite3         — MIT Licence
+  github.com/spf13/cobra              — Apache 2.0 Licence
+  github.com/spf13/viper              — MIT Licence
+  go.opentelemetry.io/otel            — Apache 2.0 Licence
+  go.uber.org/zap                     — MIT Licence
+  google.golang.org/grpc              — Apache 2.0 Licence
+  google.golang.org/protobuf          — BSD 3-Clause Licence

@@ -1,0 +1,62 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CodeQL — GitHub Advanced Security SAST analysis for Go.
+#
+# Runs on:
+#   • Every push to main/develop
+#   • Every pull request targeting main/develop
+#   • Weekly scheduled scan (Wednesday 03:15 UTC)
+#
+# Results appear in the repository's Security tab → Code scanning alerts.
+# ─────────────────────────────────────────────────────────────────────────────
+name: CodeQL
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: "15 3 * * 3"   # Wednesday 03:15 UTC
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  analyze:
+    name: Analyze (Go)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install CGO build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gcc libc6-dev
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+          # Use the default Go query suite plus the security-extended suite
+          # which covers OWASP Top 10 patterns.
+          queries: security-extended
+
+      - name: Build (autobuild)
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:go"

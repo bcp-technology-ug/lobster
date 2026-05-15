@@ -36,6 +36,58 @@ This means there is no separate public-only fork and no separate long-term priva
 3. Ensure tests and linters pass locally.
 4. Open a pull request with context, motivation, and testing notes.
 
+## Local development setup
+
+Install the required toolchain:
+
+```bash
+# Go 1.25+ — https://go.dev/dl/
+# A C compiler (for CGO/SQLite):
+#   macOS: Xcode Command Line Tools — xcode-select --install
+#   Linux: sudo apt-get install gcc libc6-dev  (Debian/Ubuntu)
+#          sudo dnf install gcc               (Fedora/RHEL)
+
+# Protocol Buffer compiler + buf (API generation)
+brew install buf           # macOS
+# or: https://buf.build/docs/installation
+
+# sqlc (SQL → Go codegen)
+brew install sqlc          # macOS
+# or: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+# golangci-lint (local lint runs)
+brew install golangci-lint  # macOS
+# or: https://golangci-lint.run/usage/install/
+
+# govulncheck (Go vulnerability scanner)
+go install golang.org/x/vuln/cmd/govulncheck@latest
+
+# vhs (terminal demo recorder — optional, for docs/demo.tape)
+brew install vhs
+```
+
+Build and install both binaries:
+
+```bash
+make build    # builds bin/lobster and bin/lobsterd
+make install  # installs to $GOPATH/bin
+```
+
+Run the test suite:
+
+```bash
+make test-unit   # go test -race ./...
+make test-cli    # lobster self-tests, no Docker required
+make test-all    # full suite including daemon scenarios (requires Docker)
+```
+
+Regenerate protobuf and SQL code after schema changes:
+
+```bash
+make proto  # buf generate
+make sqlc   # sqlc generate
+```
+
 ## Commit conventions
 
 Use Conventional Commits where possible:
