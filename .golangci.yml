@@ -20,7 +20,6 @@ linters:
     - errname          # Error type naming conventions.
     - errorlint        # Correct usage of errors.Is / errors.As / %w.
     - exhaustruct      # Ensure all struct fields are set (opt-in via comment).
-    - exportloopref    # Loop variable capture bugs (pre-1.22).
     - nilerr           # Functions should not return nil errors.
     - noctx            # HTTP requests should use context.
     - rowserrcheck     # sql.Rows.Err() must be checked.
@@ -32,10 +31,7 @@ linters:
     - gosec            # Common security issues (G-codes).
 
     # ── Style & maintainability ───────────────────────────────────────────────
-    - gci              # Deterministic import ordering.
     - godot            # Comment sentences should end with a period.
-    - gofmt            # Enforce standard formatting.
-    - goimports        # Enforce standard import grouping.
     - misspell         # Catch common English misspellings.
     - prealloc         # Suggest slice pre-allocation.
     - revive           # Opinionated but configurable Go style.
@@ -70,17 +66,6 @@ linters:
         global:
           audit: true
 
-    # ── gci ──────────────────────────────────────────────────────────────────
-    gci:
-      sections:
-        - standard
-        - default
-        - prefix(github.com/bcp-technology-ug/lobster)
-
-    # ── goimports ────────────────────────────────────────────────────────────
-    goimports:
-      local-prefixes: github.com/bcp-technology-ug/lobster
-
     # ── revive ───────────────────────────────────────────────────────────────
     revive:
       rules:
@@ -113,45 +98,66 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
 
-  exclusions:
-    rules:
-      # Test files: relax several rules that are too strict for test code.
-      - path: _test\.go
-        linters:
-          - errcheck
-          - gosec
-          - exhaustruct
-          - unparam
+exclusions:
+  rules:
+    # Test files: relax several rules that are too strict for test code.
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - exhaustruct
+        - unparam
 
-      # Generated code: skip all linting.
-      - path: ^gen/
-        linters:
-          - revive
-          - godot
-          - gci
-          - goimports
-          - gosec
-          - unused
+    # Generated code: skip all linting.
+    - path: ^gen/
+      linters:
+        - revive
+        - godot
+        - gosec
+        - unused
 
-      # Generated sqlc code.
-      - path: ^gen/sqlc/
-        text: ".*"
-        linters:
-          - revive
-          - godot
-          - stylecheck
-          - unused
+    # Generated sqlc code.
+    - path: ^gen/sqlc/
+      text: ".*"
+      linters:
+        - revive
+        - godot
+        - stylecheck
+        - unused
 
-      # Protobuf generated code.
-      - path: ^gen/go/
-        text: ".*"
-        linters:
-          - revive
-          - godot
-          - stylecheck
-          - unused
+    # Protobuf generated code.
+    - path: ^gen/go/
+      text: ".*"
+      linters:
+        - revive
+        - godot
+        - stylecheck
+        - unused
 
     # Migration SQL embeds: the embed.go files are trivial.
-      - path: embed\.go
-        linters:
-          - godot
+    - path: embed\.go
+      linters:
+        - godot
+
+formatters:
+  enable:
+    - gci              # Deterministic import ordering.
+    - gofmt            # Enforce standard formatting.
+    - goimports        # Enforce standard import grouping.
+
+  settings:
+    # ── gci ──────────────────────────────────────────────────────────────────
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/bcp-technology-ug/lobster)
+
+    # ── goimports ────────────────────────────────────────────────────────────
+    goimports:
+      local-prefixes: github.com/bcp-technology-ug/lobster
+
+  exclusions:
+    # Skip generated code from formatter checks.
+    paths:
+      - ^gen/
