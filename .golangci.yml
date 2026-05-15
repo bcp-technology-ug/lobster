@@ -150,7 +150,7 @@ issues:
           - revive
           - godot
           - stylecheck
-        - unused
+          - unused
 
     # Migration SQL embeds: the embed.go files are trivial.
     - path: embed\.go
