@@ -155,9 +155,5 @@ formatters:
 
     # ── goimports ────────────────────────────────────────────────────────────
     goimports:
-      local-prefixes: github.com/bcp-technology-ug/lobster
-
-  exclusions:
-    # Skip generated code from formatter checks.
-    paths:
-      - ^gen/
+      local-prefixes:
+        - github.com/bcp-technology-ug/lobster
