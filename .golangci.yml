@@ -60,55 +60,55 @@ linters:
   settings:
     # ── errcheck ──────────────────────────────────────────────────────────────
     errcheck:
-    check-type-assertions: true
-    check-blank: true
+      check-type-assertions: true
+      check-blank: true
 
     # ── gosec ────────────────────────────────────────────────────────────────
     gosec:
-    excludes:
-      - G115  # integer overflow: acceptable for non-crypto counters
-    config:
-      global:
-        audit: true
+      excludes:
+        - G115  # integer overflow: acceptable for non-crypto counters
+      config:
+        global:
+          audit: true
 
     # ── gci ──────────────────────────────────────────────────────────────────
     gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/bcp-technology-ug/lobster)
+      sections:
+        - standard
+        - default
+        - prefix(github.com/bcp-technology-ug/lobster)
 
     # ── goimports ────────────────────────────────────────────────────────────
     goimports:
-    local-prefixes: github.com/bcp-technology-ug/lobster
+      local-prefixes: github.com/bcp-technology-ug/lobster
 
     # ── revive ───────────────────────────────────────────────────────────────
     revive:
-    rules:
-      - name: exported
-        disabled: true   # Allow unexported names without doc comments in tests.
-      - name: var-naming
-        severity: warning
-      - name: error-return
-        severity: warning
-      - name: if-return
-        severity: warning
-      - name: increment-decrement
-        severity: warning
-      - name: range
-        severity: warning
-      - name: unused-parameter
-        severity: warning
+      rules:
+        - name: exported
+          disabled: true   # Allow unexported names without doc comments in tests.
+        - name: var-naming
+          severity: warning
+        - name: error-return
+          severity: warning
+        - name: if-return
+          severity: warning
+        - name: increment-decrement
+          severity: warning
+        - name: range
+          severity: warning
+        - name: unused-parameter
+          severity: warning
 
     # ── misspell ─────────────────────────────────────────────────────────────
     misspell:
-    locale: US
+      locale: US
 
     # ── exhaustruct ──────────────────────────────────────────────────────────
     exhaustruct:
-    # Only enforce exhaustive struct initialization where explicitly opted-in
-    # with a `//exhaustruct:enforce` comment on the struct type.
-    include: []
+      # Only enforce exhaustive struct initialization where explicitly opted-in
+      # with a `//exhaustruct:enforce` comment on the struct type.
+      include: []
 
 issues:
   max-issues-per-linter: 0
@@ -153,6 +153,6 @@ issues:
           - unused
 
     # Migration SQL embeds: the embed.go files are trivial.
-    - path: embed\.go
-      linters:
-        - godot
+      - path: embed\.go
+        linters:
+          - godot
