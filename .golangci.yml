@@ -94,50 +94,50 @@ linters:
       # with a `//exhaustruct:enforce` comment on the struct type.
       include: []
 
+  exclusions:
+    rules:
+      # Test files: relax several rules that are too strict for test code.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - exhaustruct
+          - unparam
+
+      # Generated code: skip all linting.
+      - path: ^gen/
+        linters:
+          - revive
+          - godot
+          - gosec
+          - unused
+
+      # Generated sqlc code.
+      - path: ^gen/sqlc/
+        text: ".*"
+        linters:
+          - revive
+          - godot
+          - stylecheck
+          - unused
+
+      # Protobuf generated code.
+      - path: ^gen/go/
+        text: ".*"
+        linters:
+          - revive
+          - godot
+          - stylecheck
+          - unused
+
+      # Migration SQL embeds: the embed.go files are trivial.
+      - path: embed\.go
+        linters:
+          - godot
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-
-exclusions:
-  rules:
-    # Test files: relax several rules that are too strict for test code.
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - exhaustruct
-        - unparam
-
-    # Generated code: skip all linting.
-    - path: ^gen/
-      linters:
-        - revive
-        - godot
-        - gosec
-        - unused
-
-    # Generated sqlc code.
-    - path: ^gen/sqlc/
-      text: ".*"
-      linters:
-        - revive
-        - godot
-        - stylecheck
-        - unused
-
-    # Protobuf generated code.
-    - path: ^gen/go/
-      text: ".*"
-      linters:
-        - revive
-        - godot
-        - stylecheck
-        - unused
-
-    # Migration SQL embeds: the embed.go files are trivial.
-    - path: embed\.go
-      linters:
-        - godot
 
 formatters:
   enable:
