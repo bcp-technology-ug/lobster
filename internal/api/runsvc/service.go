@@ -8,18 +8,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bcp-technology-ug/lobster/internal/api/convert"
-	lobsterlog "github.com/bcp-technology-ug/lobster/internal/log"
-	"github.com/bcp-technology-ug/lobster/internal/store"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	runstore "github.com/bcp-technology-ug/lobster/gen/sqlc/run"
-
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/bcp-technology-ug/lobster/internal/api/convert"
+	lobsterlog "github.com/bcp-technology-ug/lobster/internal/log"
+	"github.com/bcp-technology-ug/lobster/internal/store"
 )
 
 // Runner is the interface the RunService delegates actual execution to.
@@ -331,13 +329,4 @@ func (s *Service) attachRunDetail(ctx context.Context, run *runv1.Run) error {
 		})
 	}
 	return nil
-}
-
-// timestampPBToDBPtr formats a *timestamppb.Timestamp to *string for DB storage.
-func timestampPBToDBPtr(ts *timestamppb.Timestamp) *string {
-	if ts == nil {
-		return nil
-	}
-	s := ts.AsTime().UTC().Format(time.RFC3339Nano)
-	return &s
 }

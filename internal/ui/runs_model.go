@@ -5,11 +5,12 @@ import (
 	"strings"
 	"time"
 
-	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 )
 
 // RunsListModel is a Bubbletea model for browsing the run history.
@@ -23,7 +24,6 @@ type RunsListModel struct {
 	filter    textinput.Model
 	filtering bool
 	nextToken string
-	prevToken string
 	loading   bool
 	err       error
 	detail    *RunDetailModel
@@ -183,9 +183,7 @@ func (m RunsListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.rows = make([]*runv1.Run, len(msg.runs))
-		for i := range msg.runs {
-			m.rows[i] = msg.runs[i]
-		}
+		copy(m.rows, msg.runs)
 		m.nextToken = msg.nextToken
 		m.applyRebuild()
 		return m, nil
@@ -296,7 +294,7 @@ func (m RunsListModel) View() string {
 	return TUICenter(m.width, card)
 }
 
-// cardWidth returns the outer width of the centered content card.
+// cardWidth returns the outer width of the centred content card.
 func (m RunsListModel) cardWidth() int {
 	w := m.width - 2
 	if w > 200 {

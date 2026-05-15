@@ -14,6 +14,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/durationpb"
+
+	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
+	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	configv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
+	integrationsv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations"
+	integrationstore "github.com/bcp-technology-ug/lobster/gen/sqlc/integrations"
 	"github.com/bcp-technology-ug/lobster/internal/api"
 	"github.com/bcp-technology-ug/lobster/internal/api/adminsvc"
 	"github.com/bcp-technology-ug/lobster/internal/api/middleware"
@@ -27,20 +40,6 @@ import (
 	"github.com/bcp-technology-ug/lobster/internal/steps/builtin"
 	"github.com/bcp-technology-ug/lobster/internal/store"
 	"github.com/bcp-technology-ug/lobster/internal/ui"
-
-	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
-	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
-	configv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
-	integrationsv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations"
-	integrationstore "github.com/bcp-technology-ug/lobster/gen/sqlc/integrations"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 const (
@@ -57,7 +56,7 @@ func NewRootCommand() *cobra.Command {
 		Use:     "lobsterd",
 		Short:   "Lobster daemon process",
 		Version: version,
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			return initViper(v, cfgFile)
 		},
 	}
@@ -111,7 +110,7 @@ func newStartCommand(v *viper.Viper) *cobra.Command {
 
 			st, err := store.Open(ctx, storeCfg)
 			if err != nil {
-				return fmt.Errorf("initialize store: %w", err)
+				return fmt.Errorf("initialise store: %w", err)
 			}
 			defer func() { _ = st.Close() }()
 
@@ -492,7 +491,7 @@ func buildGRPCListener(cmd *cobra.Command, v *viper.Viper, addr string) (net.Lis
 
 	if certFile == "" || keyFile == "" {
 		// Plaintext — safe for localhost / in-cluster loopback.
-		return net.Listen("tcp", addr)
+		return net.Listen("tcp", addr) //nolint:noctx // startup listener
 	}
 
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -514,14 +513,12 @@ func buildGRPCListener(cmd *cobra.Command, v *viper.Viper, addr string) (net.Lis
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
-	lis, err := net.Listen("tcp", addr)
+	lis, err := net.Listen("tcp", addr) //nolint:noctx // startup listener, TLS wrapper applied after
 	if err != nil {
 		return nil, err
 	}
 	return tls.NewListener(lis, tlsCfg), nil
 }
-
-// loadClientCAPool parses a PEM-encoded CA bundle from the given file path.
 func loadClientCAPool(caFile string) (*x509.CertPool, error) {
 	pem, err := os.ReadFile(caFile) // #nosec G304 — operator-controlled config path
 	if err != nil {

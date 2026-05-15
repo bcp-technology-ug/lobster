@@ -25,7 +25,7 @@ type Adapter interface {
 	// Reset restores known state between scenarios (e.g. reseeds test data).
 	Reset(ctx context.Context) error
 
-	// Teardown removes transient artifacts after suite execution ends.
+	// Teardown removes transient artefacts after suite execution ends.
 	Teardown(ctx context.Context) error
 }
 

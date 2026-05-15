@@ -5,11 +5,12 @@ import (
 	"strings"
 	"time"
 
-	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
+	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 )
 
 // PlansListModel is a Bubbletea model for browsing execution plans.
@@ -299,7 +300,7 @@ func (m PlansListModel) View() string {
 	return TUICenter(m.width, card)
 }
 
-// cardWidth returns the outer width of the centered content card.
+// cardWidth returns the outer width of the centred content card.
 func (m PlansListModel) cardWidth() int {
 	w := m.width - 2
 	if w > 200 {

@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	integrationsv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	integrationsv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 // newIntegrationsCommand creates the `lobster integrations` command group.

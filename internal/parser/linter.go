@@ -21,6 +21,8 @@ func (s Severity) String() string {
 }
 
 // Diagnostic is a single linting issue found in a feature file.
+//
+//nolint:errname // "Diagnostic" is the established domain term; renaming to DiagnosticError would break the public API.
 type Diagnostic struct {
 	Severity   Severity
 	URI        string

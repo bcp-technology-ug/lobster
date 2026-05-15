@@ -6,16 +6,17 @@ import (
 	"net"
 	"strings"
 
-	"github.com/bcp-technology-ug/lobster/internal/api"
-	"github.com/bcp-technology-ug/lobster/internal/api/middleware"
-	"github.com/bcp-technology-ug/lobster/internal/store"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
-	lobstermigrations "github.com/bcp-technology-ug/lobster/migrations"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/bcp-technology-ug/lobster/internal/api"
+	"github.com/bcp-technology-ug/lobster/internal/api/middleware"
+	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
+	lobstermigrations "github.com/bcp-technology-ug/lobster/migrations"
 )
 
 // newTUICommand creates the `lobster tui` command, which opens the full tabbed
@@ -101,7 +102,7 @@ func startEmbeddedTUIServer(ctx context.Context) (*grpc.ClientConn, error) {
 		return nil, fmt.Errorf("open local store: %w", err)
 	}
 
-	srv, err := api.Build(st, api.Config{
+	srv, err := api.Build(st, api.Config{ //nolint:contextcheck // api.Build initialises JWKS cache internally without a context
 		Auth: middleware.AuthConfig{AllowInsecureLocal: true, ExplicitLocalMode: true},
 	}, api.Services{})
 	if err != nil {
@@ -109,7 +110,7 @@ func startEmbeddedTUIServer(ctx context.Context) (*grpc.ClientConn, error) {
 		return nil, fmt.Errorf("build embedded server: %w", err)
 	}
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	lis, err := net.Listen("tcp", "127.0.0.1:0") //nolint:noctx // startup listener, ctx passed to goroutine
 	if err != nil {
 		_ = st.Close()
 		return nil, fmt.Errorf("listen on loopback: %w", err)

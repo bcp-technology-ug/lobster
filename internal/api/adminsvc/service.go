@@ -4,13 +4,13 @@ package adminsvc
 import (
 	"context"
 
-	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
-	configv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
-	"github.com/bcp-technology-ug/lobster/internal/store"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
+	configv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
+	"github.com/bcp-technology-ug/lobster/internal/store"
 )
 
 const (
@@ -47,7 +47,7 @@ type Service struct {
 
 // New creates a Service.
 // version is the daemon binary version string (e.g. "v0.1.0").
-// configFunc returns the sanitized effective config on demand; may return nil.
+// configFunc returns the sanitised effective config on demand; may return nil.
 func New(st *store.Store, version string, configFunc func() *adminv1.ConfigSummary) *Service {
 	if configFunc == nil {
 		configFunc = func() *adminv1.ConfigSummary { return nil }
@@ -96,7 +96,7 @@ func (s *Service) GetCapabilities(_ context.Context, _ *adminv1.GetCapabilitiesR
 	}, nil
 }
 
-// GetConfigSummary returns the sanitized effective configuration.
+// GetConfigSummary returns the sanitised effective configuration.
 func (s *Service) GetConfigSummary(_ context.Context, _ *adminv1.GetConfigSummaryRequest) (*adminv1.GetConfigSummaryResponse, error) {
 	cfg := s.configFunc()
 	if cfg == nil {

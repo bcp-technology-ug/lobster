@@ -278,7 +278,7 @@ func (o *DockerOrchestrator) ensureImage(ctx context.Context, image string) erro
 	if image == "" {
 		return nil
 	}
-	_, _, err := o.cli.ImageInspectWithRaw(ctx, image)
+	_, err := o.cli.ImageInspect(ctx, image)
 	if err == nil {
 		return nil // already present
 	}

@@ -3,10 +3,11 @@ package convert
 import (
 	"time"
 
+	"google.golang.org/protobuf/types/known/durationpb"
+
 	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	runstore "github.com/bcp-technology-ug/lobster/gen/sqlc/run"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // RunFromDB converts a sqlc Run row to the proto Run message.

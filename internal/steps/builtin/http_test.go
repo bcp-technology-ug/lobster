@@ -16,7 +16,7 @@ func newScenarioCtx(baseURL string) *steps.ScenarioContext {
 
 func TestHTTP_GET_statusOK(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "hello")
 	}))
@@ -60,7 +60,7 @@ func TestHTTP_POST_withBody(t *testing.T) {
 
 func TestHTTP_assertBodyContains(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintln(w, "welcome to lobster")
 	}))
 	t.Cleanup(srv.Close)
@@ -81,7 +81,7 @@ func TestHTTP_assertBodyContains(t *testing.T) {
 
 func TestHTTP_assertBodyIsJSON(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
@@ -100,7 +100,7 @@ func TestHTTP_assertBodyIsJSON(t *testing.T) {
 
 func TestHTTP_assertResponseHeader(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Correlation-ID", "test-123")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -119,7 +119,7 @@ func TestHTTP_assertResponseHeader(t *testing.T) {
 
 func TestHTTP_storeBodyInVar(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, "payload-value")
 	}))
 	t.Cleanup(srv.Close)
@@ -140,7 +140,7 @@ func TestHTTP_storeBodyInVar(t *testing.T) {
 
 func TestHTTP_statusCodeNotMatch_returnsError(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	t.Cleanup(srv.Close)

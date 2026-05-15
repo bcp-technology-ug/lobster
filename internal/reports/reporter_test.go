@@ -35,7 +35,7 @@ func TestStatus_String(t *testing.T) {
 	}
 }
 
-func TestRunResult_Finalize_AllPassed(t *testing.T) {
+func TestRunResult_Finalise_AllPassed(t *testing.T) {
 	t.Parallel()
 
 	rr := &reports.RunResult{
@@ -44,7 +44,7 @@ func TestRunResult_Finalize_AllPassed(t *testing.T) {
 			{Status: reports.StatusPassed},
 		},
 	}
-	rr.Finalize()
+	rr.Finalise()
 
 	if rr.Status != reports.StatusPassed {
 		t.Errorf("Status = %v, want passed", rr.Status)
@@ -60,7 +60,7 @@ func TestRunResult_Finalize_AllPassed(t *testing.T) {
 	}
 }
 
-func TestRunResult_Finalize_OneFailed(t *testing.T) {
+func TestRunResult_Finalise_OneFailed(t *testing.T) {
 	t.Parallel()
 
 	rr := &reports.RunResult{
@@ -70,7 +70,7 @@ func TestRunResult_Finalize_OneFailed(t *testing.T) {
 			{Status: reports.StatusPassed},
 		},
 	}
-	rr.Finalize()
+	rr.Finalise()
 
 	if rr.Status != reports.StatusFailed {
 		t.Errorf("Status = %v, want failed", rr.Status)
@@ -86,7 +86,7 @@ func TestRunResult_Finalize_OneFailed(t *testing.T) {
 	}
 }
 
-func TestRunResult_Finalize_Undefined(t *testing.T) {
+func TestRunResult_Finalise_Undefined(t *testing.T) {
 	t.Parallel()
 
 	rr := &reports.RunResult{
@@ -95,7 +95,7 @@ func TestRunResult_Finalize_Undefined(t *testing.T) {
 			{Status: reports.StatusUndefined},
 		},
 	}
-	rr.Finalize()
+	rr.Finalise()
 
 	// Undefined steps count as failures.
 	if rr.Status != reports.StatusFailed {
@@ -106,11 +106,11 @@ func TestRunResult_Finalize_Undefined(t *testing.T) {
 	}
 }
 
-func TestRunResult_Finalize_Empty(t *testing.T) {
+func TestRunResult_Finalise_Empty(t *testing.T) {
 	t.Parallel()
 
 	rr := &reports.RunResult{}
-	rr.Finalize()
+	rr.Finalise()
 
 	if rr.Total != 0 {
 		t.Errorf("Total = %d, want 0", rr.Total)
@@ -121,7 +121,7 @@ func TestRunResult_Finalize_Empty(t *testing.T) {
 	}
 }
 
-func TestRunResult_Finalize_Skipped(t *testing.T) {
+func TestRunResult_Finalise_Skipped(t *testing.T) {
 	t.Parallel()
 
 	rr := &reports.RunResult{
@@ -130,7 +130,7 @@ func TestRunResult_Finalize_Skipped(t *testing.T) {
 			{Status: reports.StatusSkipped},
 		},
 	}
-	rr.Finalize()
+	rr.Finalise()
 
 	if rr.Skipped != 1 {
 		t.Errorf("Skipped = %d, want 1", rr.Skipped)

@@ -6,9 +6,10 @@ import (
 	"io"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/bcp-technology-ug/lobster/internal/steps"
 	"github.com/bcp-technology-ug/lobster/internal/steps/builtin"
-	"github.com/spf13/cobra"
 )
 
 // docstringExamples maps raw pattern suffixes to Gherkin DocString/DataTable

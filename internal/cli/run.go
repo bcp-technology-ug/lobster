@@ -9,6 +9,13 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
+
 	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
 	configv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
@@ -23,12 +30,6 @@ import (
 	"github.com/bcp-technology-ug/lobster/internal/store"
 	"github.com/bcp-technology-ug/lobster/internal/telemetry"
 	"github.com/bcp-technology-ug/lobster/internal/ui"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // newRunCommand creates the `lobster run` command with full runner wiring.
@@ -48,7 +49,7 @@ func newRunCommand(v *viper.Viper) *cobra.Command {
 	cmd.Flags().String("features", "", "feature file glob pattern (e.g. features/**/*.feature)")
 	cmd.Flags().StringSlice("tags", nil, "tag filter expression (e.g. @smoke)")
 	cmd.Flags().String("scenario-regex", "", "run only scenarios whose name matches this regex")
-	cmd.Flags().String("from-plan", "", "execute from a saved plan artifact (path to plan JSON file)")
+	cmd.Flags().String("from-plan", "", "execute from a saved plan artefact (path to plan JSON file)")
 
 	// Infrastructure.
 	cmd.Flags().StringSlice("compose", nil, "docker-compose file(s)")
@@ -479,7 +480,8 @@ func runWithTUI(
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx))
 
 		tuiReporter := ui.NewTUIReporter(p)
-		allReporters := []reports.Reporter{tuiReporter}
+		allReporters := make([]reports.Reporter, 0, 1+len(extra))
+		allReporters = append(allReporters, tuiReporter)
 		allReporters = append(allReporters, extra...)
 		r = r.WithReporter(reports.NewMultiReporter(allReporters...))
 
@@ -513,7 +515,11 @@ func runWithTUI(
 			return nil
 		}
 
-		action := finalModel.(ui.RunResultModel).Action()
+		resultModel, ok := finalModel.(ui.RunResultModel)
+		if !ok {
+			return nil
+		}
+		action := resultModel.Action()
 		if action == ui.ResultActionRerun {
 			continue
 		}
@@ -543,7 +549,8 @@ func runWithConsole(
 ) error {
 	consoleReporter := reports.NewConsoleReporter(cmd.OutOrStdout(), verbosity >= 1 || reportVerbose, true)
 
-	allReporters := []reports.Reporter{consoleReporter}
+	allReporters := make([]reports.Reporter, 0, 1+len(extra))
+	allReporters = append(allReporters, consoleReporter)
 	allReporters = append(allReporters, extra...)
 	r = r.WithReporter(reports.NewMultiReporter(allReporters...))
 
@@ -621,7 +628,7 @@ func runWithDaemonSync(
 	}
 
 	runResult.Duration = time.Since(runResult.StartedAt)
-	runResult.Finalize()
+	runResult.Finalise()
 
 	if reportJSONPath != "" {
 		rep := reports.NewJSONReporter(reportJSONPath)

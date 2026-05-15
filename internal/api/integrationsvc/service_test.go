@@ -4,14 +4,15 @@ import (
 	"context"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	integrationsv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations"
 	integrationstore "github.com/bcp-technology-ug/lobster/gen/sqlc/integrations"
 	"github.com/bcp-technology-ug/lobster/internal/api/convert"
 	"github.com/bcp-technology-ug/lobster/internal/api/integrationsvc"
 	"github.com/bcp-technology-ug/lobster/internal/store"
 	"github.com/bcp-technology-ug/lobster/internal/testutil"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func upsertAdapter(t *testing.T, st *store.Store, ctx context.Context, adapterID, name string) {

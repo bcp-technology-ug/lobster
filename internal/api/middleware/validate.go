@@ -21,7 +21,7 @@ func ProtoValidate() grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req any,
-		info *grpc.UnaryServerInfo,
+		_ *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
 		if msg, ok := req.(proto.Message); ok {
@@ -44,7 +44,7 @@ func ProtoValidateStream() grpc.StreamServerInterceptor {
 	return func(
 		srv any,
 		ss grpc.ServerStream,
-		info *grpc.StreamServerInfo,
+		_ *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
 	) error {
 		// Wrap the stream to intercept the first RecvMsg and validate it.

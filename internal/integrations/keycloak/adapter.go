@@ -207,7 +207,7 @@ func (a *Adapter) EnsureRealmExists(ctx context.Context, realmName string) error
 		return fmt.Errorf("check realm %q: %w", realmName, err)
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body) //nolint:errcheck
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck,gosec
 
 	if resp.StatusCode == http.StatusOK {
 		return nil
@@ -233,7 +233,7 @@ func (a *Adapter) EnsureRealmExists(ctx context.Context, realmName string) error
 		return fmt.Errorf("create realm %q: %w", realmName, err)
 	}
 	defer createResp.Body.Close()
-	io.Copy(io.Discard, createResp.Body) //nolint:errcheck
+	io.Copy(io.Discard, createResp.Body) //nolint:errcheck,gosec
 
 	if createResp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("create realm %q: HTTP %d", realmName, createResp.StatusCode)
@@ -299,7 +299,7 @@ func (a *Adapter) EnsureUserInRealm(ctx context.Context, realmName, username, pa
 		return "", fmt.Errorf("create user %q: %w", username, err)
 	}
 	defer createResp.Body.Close()
-	io.Copy(io.Discard, createResp.Body) //nolint:errcheck
+	io.Copy(io.Discard, createResp.Body) //nolint:errcheck,gosec
 
 	if createResp.StatusCode != http.StatusCreated {
 		return "", fmt.Errorf("create user %q: HTTP %d", username, createResp.StatusCode)
@@ -340,7 +340,7 @@ func (a *Adapter) setUserPassword(ctx context.Context, token, realmName, userID,
 		return fmt.Errorf("set password: %w", err)
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body) //nolint:errcheck
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck,gosec
 
 	if resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("set password: HTTP %d", resp.StatusCode)
@@ -420,7 +420,7 @@ func (a *Adapter) ensureRealm(ctx context.Context) error {
 		return fmt.Errorf("check realm: %w", err)
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body) //nolint:errcheck
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck,gosec
 
 	if resp.StatusCode == http.StatusOK {
 		return nil // realm exists
@@ -456,7 +456,7 @@ func (a *Adapter) createRealm(ctx context.Context, token string) error {
 		return fmt.Errorf("create realm: %w", err)
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body) //nolint:errcheck
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck,gosec
 
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("create realm: HTTP %d", resp.StatusCode)

@@ -69,7 +69,7 @@ type RunResult struct {
 	Scenarios []*ScenarioResult
 	Status    Status
 
-	// Counters (derived from Scenarios on Finalize).
+	// Counters (derived from Scenarios on Finalise).
 	Total     int
 	Passed    int
 	Failed    int
@@ -77,9 +77,9 @@ type RunResult struct {
 	Undefined int
 }
 
-// Finalize computes aggregate counters and the top-level Status from the
+// Finalise computes aggregate counters and the top-level Status from the
 // scenario results. Call once after all scenarios have been added.
-func (r *RunResult) Finalize() {
+func (r *RunResult) Finalise() {
 	r.Total = len(r.Scenarios)
 	r.Passed = 0
 	r.Failed = 0
@@ -118,7 +118,7 @@ type Reporter interface {
 	// ScenarioFinished is called after all steps in a scenario complete.
 	ScenarioFinished(scenario *ScenarioResult)
 	// RunFinished is called once after all scenarios complete.
-	// result.Finalize() has already been called before this event.
+	// result.Finalise() has already been called before this event.
 	RunFinished(result *RunResult)
 }
 

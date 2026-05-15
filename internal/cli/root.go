@@ -6,12 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bcp-technology-ug/lobster/internal/config"
-	"github.com/bcp-technology-ug/lobster/internal/store"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/bcp-technology-ug/lobster/internal/config"
+	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 // Version is set at build time via -ldflags "-X github.com/bcp-technology-ug/lobster/internal/cli.Version=<tag>".
@@ -46,7 +47,7 @@ func NewRootCommand() *cobra.Command {
 			ui.StyleMuted.Render("Docs: https://github.com/bcp-technology-ug/lobster"),
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			return initViper(v, cfgFile)
 		},
 	}

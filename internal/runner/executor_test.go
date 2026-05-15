@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/metadata"
+
 	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	"github.com/bcp-technology-ug/lobster/internal/store"
-	"google.golang.org/grpc/metadata"
 )
 
 // fakeStream implements runv1.RunService_RunSyncServer for testing.
@@ -31,11 +32,11 @@ func (f *fakeStream) Send(evt *runv1.RunEvent) error {
 	f.mu.Unlock()
 	return nil
 }
-func (f *fakeStream) SetHeader(md metadata.MD) error  { return nil }
-func (f *fakeStream) SendHeader(md metadata.MD) error { return nil }
-func (f *fakeStream) SetTrailer(md metadata.MD)       {}
-func (f *fakeStream) SendMsg(m any) error             { return nil }
-func (f *fakeStream) RecvMsg(m any) error             { return nil }
+func (f *fakeStream) SetHeader(_ metadata.MD) error  { return nil }
+func (f *fakeStream) SendHeader(_ metadata.MD) error { return nil }
+func (f *fakeStream) SetTrailer(_ metadata.MD)       {}
+func (f *fakeStream) SendMsg(_ any) error            { return nil }
+func (f *fakeStream) RecvMsg(_ any) error            { return nil }
 
 func (f *fakeStream) receivedEventTypes() []runv1.RunEventType {
 	f.mu.Lock()

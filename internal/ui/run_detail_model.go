@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
+
 	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	"github.com/bcp-technology-ug/lobster/internal/reports"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // RunDetailModel renders a scrollable detail view for a single Run.
@@ -154,10 +155,10 @@ func (m RunDetailModel) buildContent() string {
 		if d := sc.GetDuration(); d != nil {
 			dur = "  " + StyleMuted.Render(formatRunDuration(d.AsDuration()))
 		}
-		b.WriteString(fmt.Sprintf("  %s  %s%s\n",
+		fmt.Fprintf(&b, "  %s  %s%s\n",
 			iconStyle.Render(icon),
 			StyleBold.Render(sc.GetScenarioId()),
-			dur))
+			dur)
 
 		for _, step := range sc.GetStepResults() {
 			sIcon, sStyle := stepStatusIcon(stepStatusFromProto(step.GetStatus()))
@@ -165,10 +166,10 @@ func (m RunDetailModel) buildContent() string {
 			if d := step.GetDuration(); d != nil {
 				stepDur = "  " + StyleMuted.Render(formatRunDuration(d.AsDuration()))
 			}
-			b.WriteString(fmt.Sprintf("       %s  %s%s\n",
+			fmt.Fprintf(&b, "       %s  %s%s\n",
 				sStyle.Render(sIcon),
 				StyleMuted.Render("step/"+shortID(step.GetStepId())),
-				stepDur))
+				stepDur)
 			for _, af := range step.GetAssertionFailures() {
 				b.WriteString("          " + StyleError.Render(af.GetMessage()) + "\n")
 			}
@@ -195,6 +196,6 @@ func protoScenarioStatusToReports(s commonv1.ScenarioStatus) reports.Status {
 
 // contextWithTimeout creates a context with the given timeout duration.
 // Shared by TUI models that need short-lived request contexts.
-func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
+func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) { //nolint:unparam // callers always use 5s today but the parameter keeps future flexibility
 	return context.WithTimeout(context.Background(), d)
 }

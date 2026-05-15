@@ -6,9 +6,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/bcp-technology-ug/lobster/internal/reports"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bcp-technology-ug/lobster/internal/reports"
 )
 
 // ResultAction is the action the user chose on the result screen.
@@ -332,14 +333,14 @@ func copyToClipboard(text string) tea.Cmd {
 		var cmd *exec.Cmd
 		switch runtime.GOOS {
 		case "darwin":
-			cmd = exec.Command("pbcopy")
+			cmd = exec.Command("pbcopy") //nolint:noctx // clipboard; no context available
 		case "windows":
-			cmd = exec.Command("clip")
+			cmd = exec.Command("clip") //nolint:noctx // clipboard; no context available
 		default:
 			if _, err := exec.LookPath("xclip"); err == nil {
-				cmd = exec.Command("xclip", "-selection", "c")
+				cmd = exec.Command("xclip", "-selection", "c") //nolint:noctx // clipboard; no context available
 			} else if _, err := exec.LookPath("xsel"); err == nil {
-				cmd = exec.Command("xsel", "--clipboard", "--input")
+				cmd = exec.Command("xsel", "--clipboard", "--input") //nolint:noctx // clipboard; no context available
 			} else {
 				return clipboardResultMsg{ok: false}
 			}

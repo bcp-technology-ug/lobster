@@ -35,10 +35,7 @@ func Register(r *steps.Registry) error {
 	if err := registerWaitSteps(r); err != nil {
 		return err
 	}
-	if err := registerGRPCSteps(r); err != nil {
-		return err
-	}
-	return nil
+	return registerGRPCSteps(r)
 }
 
 // RegisterHooks wires built-in lifecycle hooks into h.

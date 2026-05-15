@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bcp-technology-ug/lobster/internal/parser"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bcp-technology-ug/lobster/internal/parser"
 )
 
 // ScenarioPickerModel is a Bubbletea model for interactively selecting
@@ -232,11 +233,11 @@ func (m ScenarioPickerModel) View() string {
 			tags = " " + StyleMuted.Render(strings.Join(it.tags, " "))
 		}
 
-		b.WriteString(fmt.Sprintf("%s%s %s%s\n",
+		fmt.Fprintf(&b, "%s%s %s%s\n",
 			cursor,
 			checkbox,
 			checkStyle.Render(it.name),
-			tags))
+			tags)
 	}
 
 	if len(m.filtered) == 0 {

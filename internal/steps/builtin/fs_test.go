@@ -28,7 +28,7 @@ func withTempDir(t *testing.T, fn func(dir string)) {
 }
 
 func TestFS_fileExists_missing(t *testing.T) {
-	withTempDir(t, func(dir string) {
+	withTempDir(t, func(_ string) {
 		ctx := steps.NewScenarioContext("", nil, nil)
 		if err := stepFileExists(ctx, "missing.txt"); err == nil {
 			t.Error("expected error for missing file")
@@ -50,7 +50,7 @@ func TestFS_fileExists_found(t *testing.T) {
 }
 
 func TestFS_fileNotExists_missing(t *testing.T) {
-	withTempDir(t, func(dir string) {
+	withTempDir(t, func(_ string) {
 		ctx := steps.NewScenarioContext("", nil, nil)
 		if err := stepFileNotExists(ctx, "missing.txt"); err != nil {
 			t.Fatalf("stepFileNotExists: %v", err)

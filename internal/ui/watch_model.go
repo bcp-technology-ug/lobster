@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
-	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
-	"github.com/bcp-technology-ug/lobster/internal/reports"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology-ug/lobster/internal/reports"
 )
 
 // WatchModel is a Bubbletea model that streams live run events from a
@@ -168,18 +169,18 @@ func (m WatchModel) View() string {
 		if row.duration != "" {
 			dur = "  " + StyleMuted.Render(row.duration)
 		}
-		b.WriteString(fmt.Sprintf("  %s  %s%s\n",
+		fmt.Fprintf(&b, "  %s  %s%s\n",
 			iconStyle.Render(icon),
 			StyleBold.Render(row.scenarioID),
-			dur))
+			dur)
 		if row.errText != "" {
 			b.WriteString("       " + StyleError.Render(row.errText) + "\n")
 		}
 	}
 
 	if !m.done {
-		b.WriteString(fmt.Sprintf("\n  %s streaming…  press q to detach\n",
-			m.spinner.View()))
+		fmt.Fprintf(&b, "\n  %s streaming…  press q to detach\n",
+			m.spinner.View())
 	}
 
 	if m.done && m.summary != nil {

@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	lobstermcp "github.com/bcp-technology-ug/lobster/internal/mcp"
 	"github.com/spf13/cobra"
+
+	lobstermcp "github.com/bcp-technology-ug/lobster/internal/mcp"
 )
 
 func newMCPCommand() *cobra.Command {

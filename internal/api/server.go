@@ -4,20 +4,24 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 
 	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
 	integrationsv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations"
 	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
-
 	"github.com/bcp-technology-ug/lobster/internal/api/adminsvc"
 	"github.com/bcp-technology-ug/lobster/internal/api/integrationsvc"
 	"github.com/bcp-technology-ug/lobster/internal/api/middleware"
@@ -25,12 +29,6 @@ import (
 	"github.com/bcp-technology-ug/lobster/internal/api/runsvc"
 	"github.com/bcp-technology-ug/lobster/internal/api/stacksvc"
 	"github.com/bcp-technology-ug/lobster/internal/store"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
 )
 
 // Config groups all settings needed to build the server.
@@ -45,7 +43,7 @@ type Config struct {
 	// WorkspaceID and ActiveProfile are surfaced in GetConfigSummary.
 	WorkspaceID   string
 	ActiveProfile string
-	// ConfigSummaryFunc returns the sanitized effective config on demand.
+	// ConfigSummaryFunc returns the sanitised effective config on demand.
 	// When nil, GetConfigSummary returns codes.Unavailable.
 	ConfigSummaryFunc func() *adminv1.ConfigSummary
 }
@@ -204,11 +202,12 @@ func ServeHTTP(ctx context.Context, mux http.Handler, httpListen string) error {
 	}()
 	select {
 	case <-ctx.Done():
+		// ctx is already cancelled; use a fresh context for the graceful shutdown window.
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return httpSrv.Shutdown(shutdownCtx)
+		return httpSrv.Shutdown(shutdownCtx) //nolint:contextcheck
 	case err := <-errCh:
-		if err == http.ErrServerClosed {
+		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 		return err

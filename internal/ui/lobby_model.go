@@ -5,13 +5,14 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"google.golang.org/grpc"
+
 	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
 	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"google.golang.org/grpc"
 )
 
 // LobbyTab identifies each tab in the tabbed lobby view.
@@ -104,9 +105,9 @@ func (m LobbyModel) loadAdminCmd() tea.Cmd {
 			ready = StyleSuccess.Render("yes")
 		}
 		var b strings.Builder
-		b.WriteString(fmt.Sprintf("Live:    %s\n", live))
-		b.WriteString(fmt.Sprintf("Ready:   %s\n", ready))
-		b.WriteString(fmt.Sprintf("Version: %s\n", h.GetVersion()))
+		fmt.Fprintf(&b, "Live:    %s\n", live)
+		fmt.Fprintf(&b, "Ready:   %s\n", ready)
+		fmt.Fprintf(&b, "Version: %s\n", h.GetVersion())
 		return adminLoadMsg{content: b.String()}
 	}
 }
@@ -267,7 +268,7 @@ func (m LobbyModel) renderFooter() string {
 	}, sep)
 }
 
-// cardWidth returns the outer width of the centered content card.
+// cardWidth returns the outer width of the centred content card.
 func (m LobbyModel) cardWidth() int {
 	w := m.width - 2
 	if w > 200 {

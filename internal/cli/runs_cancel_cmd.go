@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	"github.com/spf13/cobra"
+
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	"github.com/bcp-technology-ug/lobster/internal/ui"
-	"github.com/spf13/cobra"
 )
 
 // newRunsCancelCommand creates `lobster runs cancel <run-id>`.
@@ -50,7 +50,7 @@ func newRunsCancelCommand() *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s Run %s cancelled — terminal status: %s\n",
 				ui.IconCheck,
 				resp.GetRunId(),
-				runStatusLabel(commonv1.RunStatus(resp.GetTerminalStatus())),
+				runStatusLabel(resp.GetTerminalStatus()),
 			)
 			return nil
 		},

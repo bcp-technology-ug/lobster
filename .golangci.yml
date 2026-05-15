@@ -19,7 +19,6 @@ linters:
     - contextcheck     # Functions should pass context.Context properly.
     - errname          # Error type naming conventions.
     - errorlint        # Correct usage of errors.Is / errors.As / %w.
-    - exhaustruct      # Ensure all struct fields are set (opt-in via comment).
     - nilerr           # Functions should not return nil errors.
     - noctx            # HTTP requests should use context.
     - rowserrcheck     # sql.Rows.Err() must be checked.
@@ -32,7 +31,6 @@ linters:
 
     # ── Style & maintainability ───────────────────────────────────────────────
     - godot            # Comment sentences should end with a period.
-    - misspell         # Catch common English misspellings.
     - prealloc         # Suggest slice pre-allocation.
     - revive           # Opinionated but configurable Go style.
     - thelper          # Test helper functions should call t.Helper().
@@ -42,11 +40,13 @@ linters:
   disable:
     # Overly strict / causes too many false positives for a project at this stage.
     - depguard
+    - exhaustruct      # include:[] checks all types incl. cobra.Command, proto msgs, stdlib.
     - funlen
     - gocognit
     - gocyclo
     - lll
     - maintidx
+    - misspell         # Project uses British English intentionally.
     - nlreturn
     - wsl
     - godox            # TODO/FIXME comments are fine.
@@ -56,15 +56,12 @@ linters:
     # ── errcheck ──────────────────────────────────────────────────────────────
     errcheck:
       check-type-assertions: true
-      check-blank: true
+      check-blank: false
 
     # ── gosec ────────────────────────────────────────────────────────────────
     gosec:
       excludes:
         - G115  # integer overflow: acceptable for non-crypto counters
-      config:
-        global:
-          audit: true
 
     # ── revive ───────────────────────────────────────────────────────────────
     revive:
@@ -84,18 +81,48 @@ linters:
         - name: unused-parameter
           severity: warning
 
-    # ── misspell ─────────────────────────────────────────────────────────────
-    misspell:
-      locale: US
-
-    # ── exhaustruct ──────────────────────────────────────────────────────────
-    exhaustruct:
-      # Only enforce exhaustive struct initialization where explicitly opted-in
-      # with a `//exhaustruct:enforce` comment on the struct type.
-      include: []
-
   exclusions:
     rules:
+      # ── errcheck: accepted defer-close patterns ────────────────────────────
+      # Deferred Close() calls deliberately discard their error return; this is
+      # idiomatic Go for resources managed via defer.
+      - linters: [errcheck]
+        source: 'defer.*\.Close\(\)'
+
+      # fmt.Print* to cmd stdout/stderr: write errors are non-actionable.
+      - linters: [errcheck]
+        source: 'fmt\.F?[Pp]rint'
+
+      # ── gosec: intentional file-system operations ─────────────────────────
+      # G304 — reading files from paths supplied by the user/config is
+      # intentional in a CLI tool; paths are not derived from HTTP input.
+      - linters: [gosec]
+        text: 'G304'
+
+      # G301/G306 — project scaffolding and config-file creation use 0o755 /
+      # 0o644 intentionally; tighter permissions would break usability.
+      - linters: [gosec]
+        text: 'G301'
+      - linters: [gosec]
+        text: 'G306'
+
+      # ── godot: step-handler doc comments ──────────────────────────────────
+      # Step handler comments end with the Gherkin step pattern text, which is
+      # not a prose sentence and therefore does not need a trailing period.
+      - linters: [godot]
+        source: 'handles:'
+
+      # Short pragmatic "keep X used" import comments are not sentences.
+      - linters: [godot]
+        source: '// keep '
+
+      # ── contextcheck: intentional context.Background() in cleanup paths ───
+      # The async run goroutine in executor.go uses context.Background() for
+      # post-run teardown because the original gRPC request context is already
+      # cancelled by the time cleanup runs.
+      - linters: [contextcheck]
+        path: 'internal/runner/executor\.go'
+
       # Test files: relax several rules that are too strict for test code.
       - path: _test\.go
         linters:

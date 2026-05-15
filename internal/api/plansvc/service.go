@@ -6,14 +6,13 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/bcp-technology-ug/lobster/internal/api/convert"
-	"github.com/bcp-technology-ug/lobster/internal/store"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/bcp-technology-ug/lobster/internal/api/convert"
+	"github.com/bcp-technology-ug/lobster/internal/store"
 )
 
 // Planner is the interface the PlanService delegates execution planning to.
@@ -96,7 +95,7 @@ func (s *Service) ListPlans(ctx context.Context, req *planv1.ListPlansRequest) (
 	}, nil
 }
 
-// attachPlanDetail loads scenarios and artifact and attaches them to plan.
+// attachPlanDetail loads scenarios and artefact and attaches them to plan.
 func (s *Service) attachPlanDetail(ctx context.Context, plan *planv1.ExecutionPlan) error {
 	scenarios, err := s.store.Plan.ListExecutionPlanScenarios(ctx, plan.PlanId)
 	if err != nil {
@@ -117,9 +116,9 @@ func (s *Service) attachPlanDetail(ctx context.Context, plan *planv1.ExecutionPl
 		plan.Scenarios = append(plan.Scenarios, sp)
 	}
 
-	artifact, err := s.store.Plan.GetPlanArtifactByPlanID(ctx, plan.PlanId)
+	artefact, err := s.store.Plan.GetPlanArtifactByPlanID(ctx, plan.PlanId)
 	if err == nil {
-		plan.Artifact = convert.PlanArtifactFromDB(artifact)
+		plan.Artifact = convert.PlanArtifactFromDB(artefact)
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}

@@ -2,7 +2,7 @@ package ui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Adaptive colors: look great on both dark and light terminals.
+// Adaptive colours: look great on both dark and light terminals.
 // Primary/secondary use the lobster red-orange brand palette.
 var (
 	colorPrimary   = lipgloss.AdaptiveColor{Light: "#C2410C", Dark: "#F97316"} // lobster orange
@@ -106,7 +106,7 @@ var (
 				Foreground(colorSecondary)
 )
 
-// Status badge styles — colored background pills used in run/service status cells.
+// Status badge styles — coloured background pills used in run/service status cells.
 var (
 	BadgeRunning = lipgloss.NewStyle().
 			Background(lipgloss.AdaptiveColor{Light: "#0E7490", Dark: "#155E75"}).
@@ -134,7 +134,7 @@ var (
 			Bold(true).Padding(0, 1)
 )
 
-// TUICenter centers s horizontally inside a rendered block of totalWidth chars.
+// TUICenter centres s horizontally inside a rendered block of totalWidth chars.
 func TUICenter(totalWidth int, s string) string {
 	return lipgloss.NewStyle().Width(totalWidth).Align(lipgloss.Center).Render(s)
 }

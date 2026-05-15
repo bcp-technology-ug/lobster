@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+
+	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
 )
 
 // StackStatusModel is a Bubbletea model that displays the current stack status.
@@ -200,7 +201,7 @@ func (m StackStatusModel) View() string {
 	return TUICenter(m.width, card)
 }
 
-// cardWidth returns the outer width of the centered content card.
+// cardWidth returns the outer width of the centred content card.
 func (m StackStatusModel) cardWidth() int {
 	w := m.width - 2
 	if w > 200 {

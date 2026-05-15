@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/ssh"
 	"github.com/charmbracelet/wish"
@@ -18,6 +17,8 @@ import (
 	"github.com/charmbracelet/wish/logging"
 	gossh "golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
+
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 // SSHServerConfig holds configuration for the Wish SSH server.
@@ -40,7 +41,7 @@ func StartSSHServer(ctx context.Context, cfg SSHServerConfig, conn *grpc.ClientC
 		wish.WithAddress(cfg.Addr),
 		wish.WithHostKeyPEM(hostKeyPEM),
 		wish.WithMiddleware(
-			bbtea.Middleware(func(sess ssh.Session) (tea.Model, []tea.ProgramOption) {
+			bbtea.Middleware(func(_ ssh.Session) (tea.Model, []tea.ProgramOption) {
 				m := ui.NewLobbyModel(conn, cfg.WorkspaceID)
 				return m, []tea.ProgramOption{tea.WithAltScreen()}
 			}),
@@ -67,7 +68,7 @@ func StartSSHServer(ctx context.Context, cfg SSHServerConfig, conn *grpc.ClientC
 		return fmt.Errorf("create ssh server: %w", err)
 	}
 
-	lis, err := net.Listen("tcp", cfg.Addr)
+	lis, err := net.Listen("tcp", cfg.Addr) //nolint:noctx // startup SSH listener
 	if err != nil {
 		return fmt.Errorf("ssh listen %s: %w", cfg.Addr, err)
 	}
@@ -79,7 +80,7 @@ func StartSSHServer(ctx context.Context, cfg SSHServerConfig, conn *grpc.ClientC
 
 	select {
 	case <-ctx.Done():
-		return srv.Shutdown(context.Background())
+		return srv.Shutdown(context.Background()) //nolint:contextcheck // ctx is already done; shutdown needs a fresh context
 	case err := <-errCh:
 		return err
 	}

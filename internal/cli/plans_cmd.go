@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 // newPlansCommand creates the `lobster plans` command group.

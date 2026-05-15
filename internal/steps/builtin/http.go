@@ -423,7 +423,7 @@ func doRequest(ctx *steps.ScenarioContext, method, path string, body []byte, con
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequest(method, reqURL, bodyReader)
+	req, err := http.NewRequest(method, reqURL, bodyReader) //nolint:noctx // ScenarioContext has no context.Context
 	if err != nil {
 		return fmt.Errorf("build request %s %s: %w", method, reqURL, err)
 	}

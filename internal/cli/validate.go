@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bcp-technology-ug/lobster/internal/parser"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/bcp-technology-ug/lobster/internal/parser"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 func newValidateCommand(v *viper.Viper) *cobra.Command {

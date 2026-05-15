@@ -52,7 +52,7 @@ func (c *ConsoleReporter) ScenarioStarted(sc *ScenarioResult) {
 	}
 }
 
-func (c *ConsoleReporter) StepFinished(sc *ScenarioResult, step *StepResult) {
+func (c *ConsoleReporter) StepFinished(_ *ScenarioResult, step *StepResult) {
 	if !c.verbose {
 		return
 	}

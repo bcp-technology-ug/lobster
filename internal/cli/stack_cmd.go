@@ -2,14 +2,16 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
-	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 // newStackCommand creates the `lobster stack` command group.
@@ -227,7 +229,7 @@ func newStackLogsCommand(_ *viper.Viper) *cobra.Command {
 
 			for {
 				line, recvErr := stream.Recv()
-				if recvErr == io.EOF {
+				if errors.Is(recvErr, io.EOF) {
 					break
 				}
 				if recvErr != nil {

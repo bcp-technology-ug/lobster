@@ -52,7 +52,7 @@ func RenderKeyValueTable(title string, rows [][2]string) string {
 // RenderSectionedTable renders multiple named sections, each a key-value table,
 // separated by a blank line — useful for the config command.
 func RenderSectionedTable(sections []Section) string {
-	var parts []string
+	parts := make([]string, 0, len(sections))
 	for _, s := range sections {
 		parts = append(parts, RenderKeyValueTable(s.Title, s.Rows))
 	}

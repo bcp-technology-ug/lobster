@@ -5,12 +5,12 @@ import (
 	"context"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
 	configv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
 	"github.com/bcp-technology-ug/lobster/internal/api/adminsvc"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // newService creates an adminsvc.Service with a nil store (sufficient for

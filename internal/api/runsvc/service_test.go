@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	runstore "github.com/bcp-technology-ug/lobster/gen/sqlc/run"
 	"github.com/bcp-technology-ug/lobster/internal/api/convert"
 	"github.com/bcp-technology-ug/lobster/internal/api/runsvc"
 	"github.com/bcp-technology-ug/lobster/internal/testutil"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestGetRun_found(t *testing.T) {

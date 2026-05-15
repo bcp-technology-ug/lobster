@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"strings"
 
-	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
-	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 // newRunsCommand creates the `lobster runs` command group.

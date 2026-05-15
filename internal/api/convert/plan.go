@@ -8,7 +8,7 @@ import (
 )
 
 // ExecutionPlanFromDB converts a sqlc ExecutionPlan row to the proto message.
-// Scenarios and artifact are attached by the service layer.
+// Scenarios and artefact are attached by the service layer.
 func ExecutionPlanFromDB(p planstore.ExecutionPlan) *planv1.ExecutionPlan {
 	plan := &planv1.ExecutionPlan{
 		PlanId:            p.PlanID,

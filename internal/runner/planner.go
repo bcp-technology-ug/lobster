@@ -6,14 +6,15 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
 	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
 	"github.com/bcp-technology-ug/lobster/internal/parser"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Plan parses feature files for the selector, builds an execution plan, and
@@ -173,23 +174,20 @@ func persistPlan(
 		}
 	}
 
-	// Record an artifact envelope so GetPlan can expose a storage reference.
+	// Record an artefact envelope so GetPlan can expose a storage reference.
 	artifactID := newUUID()
 	storagePath := ".lobster/plans/" + plan.PlanId + ".pb"
 	schemaVersion := "v1"
 	mediaType := "application/vnd.lobster.execution-plan.v1+protobuf"
 	createdAtStr := nowStr
-	if err := q.UpsertPlanArtifact(ctx, planstore.UpsertPlanArtifactParams{
+	return q.UpsertPlanArtifact(ctx, planstore.UpsertPlanArtifactParams{
 		PlanID:                plan.PlanId,
 		ArtifactID:            artifactID,
 		StoragePath:           storagePath,
 		EnvelopeSchemaVersion: &schemaVersion,
 		EnvelopeMediaType:     &mediaType,
 		EnvelopeCreatedAt:     &createdAtStr,
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // planID is a thin helper to unwrap the plan ID proto field.

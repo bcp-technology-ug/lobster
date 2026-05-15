@@ -126,7 +126,7 @@ func stepRetryCommandUntilZero(ctx *steps.ScenarioContext, args ...string) error
 	interval := time.Duration(intervalSecs) * time.Second
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		cmd := exec.Command("sh", "-c", cmdStr) //nolint:gosec // deliberate shell step
+		cmd := exec.Command("sh", "-c", cmdStr) //nolint:gosec,noctx // deliberate shell step
 		if err := runAndCapture(ctx, cmd); err != nil {
 			return err
 		}

@@ -55,7 +55,7 @@ func (a *Adapter) RegisterSteps(reg *steps.Registry) error {
 }
 
 // stepEnsureRealm handles: `keycloak realm "REALM" exists`
-func (a *Adapter) stepEnsureRealm(ctx *steps.ScenarioContext, args ...string) error {
+func (a *Adapter) stepEnsureRealm(_ *steps.ScenarioContext, args ...string) error {
 	realmName := args[0]
 	return a.EnsureRealmExists(context.Background(), realmName)
 }

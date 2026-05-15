@@ -8,6 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.uber.org/zap"
+	grpccodes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	commonv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/common"
 	configv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/config"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
@@ -18,14 +27,6 @@ import (
 	"github.com/bcp-technology-ug/lobster/internal/reports"
 	"github.com/bcp-technology-ug/lobster/internal/steps"
 	"github.com/bcp-technology-ug/lobster/internal/steps/builtin"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.uber.org/zap"
-	grpccodes "google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // RunSync parses features, executes matching scenarios serially, and streams
@@ -276,7 +277,7 @@ done:
 		}
 	}
 	runResult.Duration = time.Since(runResult.StartedAt)
-	runResult.Finalize()
+	runResult.Finalise()
 	reporter.RunFinished(runResult)
 
 	sumEvt := summaryEvent(runID, seq(), runResult)
@@ -553,7 +554,7 @@ asyncDone:
 		}
 	}
 	runResult.Duration = time.Since(runResult.StartedAt)
-	runResult.Finalize()
+	runResult.Finalise()
 
 	finalStatus := commonv1.RunStatus_RUN_STATUS_PASSED
 	if cancelled {
@@ -608,7 +609,7 @@ func (r *Runner) pruneRetention(ctx context.Context, workspaceID string) {
 // executeScenario runs background + scenario steps and fills sc.
 func (r *Runner) executeScenario(
 	ctx context.Context,
-	feature *parser.Feature,
+	_ *parser.Feature,
 	scenario *parser.Scenario,
 	reg *steps.Registry,
 	scenCtx *steps.ScenarioContext,

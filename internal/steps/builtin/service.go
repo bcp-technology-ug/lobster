@@ -127,7 +127,7 @@ func stepTCPPortOpen(ctx *steps.ScenarioContext, args ...string) error {
 	port := args[0]
 	host := args[1]
 	addr := net.JoinHostPort(host, port)
-	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+	conn, err := net.DialTimeout("tcp", addr, 2*time.Second) //nolint:noctx // ScenarioContext has no context.Context
 	if err != nil {
 		e := fmt.Errorf("TCP port %s on %s is not open: %w", port, host, err)
 		return softOrHard(ctx, e)
@@ -148,7 +148,7 @@ func stepWaitForTCPPort(_ *steps.ScenarioContext, args ...string) error {
 
 	deadline := time.Now().Add(time.Duration(timeoutSecs) * time.Second)
 	for {
-		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond) //nolint:noctx // ScenarioContext has no context.Context
 		if err == nil {
 			_ = conn.Close()
 			return nil

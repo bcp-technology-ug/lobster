@@ -5,13 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
 	"github.com/bcp-technology-ug/lobster/internal/api/convert"
 	"github.com/bcp-technology-ug/lobster/internal/api/plansvc"
 	"github.com/bcp-technology-ug/lobster/internal/testutil"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestGetPlan_notFound(t *testing.T) {

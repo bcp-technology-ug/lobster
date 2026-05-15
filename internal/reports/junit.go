@@ -88,7 +88,7 @@ func (j *JUnitReporter) write(r *RunResult) error {
 	defer f.Close()
 
 	suites := buildJUnitSuites(r)
-	f.WriteString(xml.Header) //nolint:errcheck
+	f.WriteString(xml.Header) //nolint:errcheck,gosec
 	enc := xml.NewEncoder(f)
 	enc.Indent("", "  ")
 	if err := enc.Encode(suites); err != nil {

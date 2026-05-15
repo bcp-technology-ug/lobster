@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -144,7 +145,7 @@ func registerShellSteps(r *steps.Registry) error {
 // that values stored with "I store the output in variable" are accessible as
 // shell variables.
 func stepRunCommand(ctx *steps.ScenarioContext, args ...string) error {
-	cmd := exec.Command("sh", "-c", unescapeArg(args[0])) //nolint:gosec // deliberate shell step
+	cmd := exec.Command("sh", "-c", unescapeArg(args[0])) //nolint:gosec,noctx // deliberate shell step
 	cmd.Env = os.Environ()
 	// Inject suite-scoped variables first so scenario-scoped ones take precedence.
 	for k, v := range ctx.SuiteVars {
@@ -179,7 +180,7 @@ func stepRunLobster(ctx *steps.ScenarioContext, args ...string) error {
 	if err != nil {
 		return fmt.Errorf("parse lobster arguments: %w", err)
 	}
-	cmd := exec.Command(lobsterBin(), parts...) //nolint:gosec // deliberate exec step
+	cmd := exec.Command(lobsterBin(), parts...) //nolint:gosec,noctx // deliberate exec step
 	if orig := ctx.Variables[varWorkDir]; orig != "" {
 		// Look for migrations/ in the original dir (running from repo root) and
 		// also one level up (running from a subdirectory like tests/).
@@ -211,7 +212,8 @@ func runAndCapture(ctx *steps.ScenarioContext, cmd *exec.Cmd) error {
 
 	code := 0
 	if runErr != nil {
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) {
 			code = exitErr.ExitCode()
 		} else {
 			// Binary not found or other OS-level error — surface it immediately.

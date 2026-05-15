@@ -7,14 +7,15 @@ import (
 	"fmt"
 	"io/fs"
 
+	"github.com/golang-migrate/migrate/v4"
+	sqlite3driver "github.com/golang-migrate/migrate/v4/database/sqlite3"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+
 	integrationstore "github.com/bcp-technology-ug/lobster/gen/sqlc/integrations"
 	planstore "github.com/bcp-technology-ug/lobster/gen/sqlc/plan"
 	runstore "github.com/bcp-technology-ug/lobster/gen/sqlc/run"
 	stackstore "github.com/bcp-technology-ug/lobster/gen/sqlc/stack"
 	"github.com/bcp-technology-ug/lobster/internal/store/sqlite"
-	"github.com/golang-migrate/migrate/v4"
-	sqlite3driver "github.com/golang-migrate/migrate/v4/database/sqlite3"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
 // OpenWithMigrationsFS opens a Store applying migrations from an embedded fs.FS

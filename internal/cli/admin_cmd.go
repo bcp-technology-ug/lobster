@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 // newAdminCommand creates the `lobster admin` command group.
@@ -149,7 +150,7 @@ func newAdminCapabilitiesCommand(_ *viper.Viper) *cobra.Command {
 func newAdminConfigCommand(_ *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Show the daemon's effective sanitized configuration",
+		Short: "Show the daemon's effective sanitised configuration",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {

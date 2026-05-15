@@ -1,9 +1,10 @@
 package convert
 
 import (
+	"google.golang.org/protobuf/types/known/anypb"
+
 	integrationsv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/integrations"
 	integrationstore "github.com/bcp-technology-ug/lobster/gen/sqlc/integrations"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // IntegrationAdapterFromDB converts a sqlc IntegrationAdapter row to proto.

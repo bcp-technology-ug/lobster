@@ -174,11 +174,8 @@ func registerTools(s *server.MCPServer, lobsterBin string) {
 		),
 		func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 			featuresGlob, _ := req.GetArguments()["features"].(string)
-			out, err := runLobster(lobsterBin, "validate", "--features", featuresGlob, "--format", "json")
-			if err != nil {
-				// validate exits non-zero on validation errors — that's not a tool error.
-				return mcpgo.NewToolResultText(out), nil
-			}
+			// validate exits non-zero on validation errors — that's not a tool error; always return output.
+			out := runLobster(lobsterBin, "validate", "--features", featuresGlob, "--format", "json")
 			return mcpgo.NewToolResultText(out), nil
 		},
 	)
@@ -194,7 +191,7 @@ func registerTools(s *server.MCPServer, lobsterBin string) {
 		),
 		func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 			featuresGlob, _ := req.GetArguments()["features"].(string)
-			out, _ := runLobster(lobsterBin, "lint", "--features", featuresGlob, "--format", "json")
+			out := runLobster(lobsterBin, "lint", "--features", featuresGlob, "--format", "json")
 			return mcpgo.NewToolResultText(out), nil
 		},
 	)
@@ -220,7 +217,7 @@ func registerTools(s *server.MCPServer, lobsterBin string) {
 			if tags != "" {
 				cmdArgs = append(cmdArgs, "--tags", tags)
 			}
-			out, _ := runLobster(lobsterBin, cmdArgs...)
+			out := runLobster(lobsterBin, cmdArgs...)
 			return mcpgo.NewToolResultText(out), nil
 		},
 	)
@@ -254,13 +251,12 @@ func buildStepCatalog(filter string) (string, error) {
 }
 
 // runLobster executes the lobster binary with the given arguments and returns
-// combined stdout+stderr output. It never returns an error for non-zero exit
-// codes (those are surfaced as text output to the agent).
-func runLobster(bin string, args ...string) (string, error) {
-	cmd := exec.Command(bin, args...) //nolint:gosec // bin comes from os.Args[0]
+// combined stdout+stderr output. Non-zero exit codes are surfaced as text output.
+func runLobster(bin string, args ...string) string {
+	cmd := exec.Command(bin, args...) //nolint:gosec,noctx // bin comes from os.Args[0]
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	_ = cmd.Run() // non-zero exit is normal for validate/lint/plan
-	return out.String(), nil
+	return out.String()
 }

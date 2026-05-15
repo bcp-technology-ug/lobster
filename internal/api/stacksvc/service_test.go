@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	stackv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/stack"
 	stackstore "github.com/bcp-technology-ug/lobster/gen/sqlc/stack"
 	"github.com/bcp-technology-ug/lobster/internal/api/convert"
 	"github.com/bcp-technology-ug/lobster/internal/api/stacksvc"
 	"github.com/bcp-technology-ug/lobster/internal/testutil"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestGetStackStatus_notFound(t *testing.T) {

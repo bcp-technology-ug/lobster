@@ -27,7 +27,7 @@ const (
 
 var migrationFileRe = regexp.MustCompile(`^([0-9]+)_.+\.up\.sql$`)
 
-// Ensure enforces configured migration behavior for the current runtime mode.
+// Ensure enforces configured migration behaviour for the current runtime mode.
 func Ensure(db *sql.DB, migrationsDir string, mode Mode) error {
 	if mode == ModeDisabled {
 		return nil

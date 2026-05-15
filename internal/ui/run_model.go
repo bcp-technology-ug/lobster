@@ -5,10 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bcp-technology-ug/lobster/internal/reports"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bcp-technology-ug/lobster/internal/reports"
 )
 
 // --- TUI reporter ---------------------------------------------------------
@@ -261,14 +262,14 @@ func (m RunModel) View() string {
 		if !sc.running && sc.duration > 0 {
 			dur = "  " + StyleMuted.Render(formatRunDuration(sc.duration))
 		}
-		b.WriteString(fmt.Sprintf("  %s  %s%s%s\n", iconStyle.Render(icon), name, tags, dur))
+		fmt.Fprintf(&b, "  %s  %s%s%s\n", iconStyle.Render(icon), name, tags, dur)
 
 		// Show steps for current running scenario or any failed one
 		if sc.running || (sc.status == reports.StatusFailed && i == m.current) {
 			for _, step := range sc.steps {
 				sIcon, sStyle := stepStatusIcon(step.status)
 				stepText := StyleMuted.Render(step.keyword) + " " + step.text
-				b.WriteString(fmt.Sprintf("       %s  %s\n", sStyle.Render(sIcon), stepText))
+				fmt.Fprintf(&b, "       %s  %s\n", sStyle.Render(sIcon), stepText)
 				if step.err != nil {
 					b.WriteString("          " + StyleError.Render(step.err.Error()) + "\n")
 				}
@@ -307,15 +308,7 @@ func (m RunModel) renderSummary() string {
 			Render(line) + "\n"
 	}
 
-	line := fmt.Sprintf("%s  %d passed  %s  %d failed  %s",
-		StyleError.Render(IconCross+" Failed"),
-		s.Passed,
-		StyleError.Render(fmt.Sprintf("%d failed", s.Failed)),
-		s.Failed,
-		StyleMuted.Render(dur),
-	)
-	// Simpler failure summary
-	line = fmt.Sprintf("%s  %d/%d passed · %d failed · %s",
+	line := fmt.Sprintf("%s  %d/%d passed · %d failed · %s",
 		StyleError.Render(IconCross+" Failed"),
 		s.Passed, s.Total, s.Failed,
 		StyleMuted.Render(dur),

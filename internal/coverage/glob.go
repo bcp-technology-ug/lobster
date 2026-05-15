@@ -36,13 +36,13 @@ func expandGlob(pattern string) ([]string, error) {
 		// Match the trailing portion against the suffix using filepath.Match.
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // skip individual file errors in walk
 		}
 		// Try matching the suffix against the full relative path so that
 		// "v1/*.proto" works correctly when rel is "example/v1/svc.proto".
 		ok, err := filepath.Match(suffix, filepath.Base(path))
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // skip invalid patterns in walk
 		}
 		if ok {
 			matches = append(matches, path)
@@ -51,7 +51,7 @@ func expandGlob(pattern string) ([]string, error) {
 		// Also try matching the full relative path against the suffix.
 		ok, err = filepath.Match(suffix, rel)
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // skip invalid patterns in walk
 		}
 		if ok {
 			matches = append(matches, path)

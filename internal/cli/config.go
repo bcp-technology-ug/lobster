@@ -7,10 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bcp-technology-ug/lobster/internal/store"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/bcp-technology-ug/lobster/internal/store"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 func newConfigCommand(v *viper.Viper) *cobra.Command {

@@ -11,10 +11,11 @@ import (
 	"strings"
 	"time"
 
-	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
-	"github.com/bcp-technology-ug/lobster/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	adminv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/admin"
+	"github.com/bcp-technology-ug/lobster/internal/ui"
 )
 
 // doctorStatus represents the outcome level of a single health check.
@@ -159,7 +160,7 @@ func checkDoctorTools() []doctorCheck {
 	if _, err := exec.LookPath("docker"); err != nil {
 		results = append(results, mkCheck(group, "docker", doctorFail, "not found in PATH"))
 	} else {
-		out, _ := exec.Command("docker", "version", "--format", "{{.Client.Version}}").Output()
+		out, _ := exec.Command("docker", "version", "--format", "{{.Client.Version}}").Output() //nolint:noctx // diagnostic
 		ver := strings.TrimSpace(string(out))
 		if ver == "" {
 			ver = "installed"
@@ -168,7 +169,7 @@ func checkDoctorTools() []doctorCheck {
 	}
 
 	// docker compose (v2 plugin)
-	out, err := exec.Command("docker", "compose", "version", "--short").Output()
+	out, err := exec.Command("docker", "compose", "version", "--short").Output() //nolint:noctx // diagnostic
 	if err != nil {
 		results = append(results, mkCheck(group, "docker compose", doctorFail,
 			"not available (requires Docker Compose v2 plugin)"))
@@ -181,7 +182,7 @@ func checkDoctorTools() []doctorCheck {
 	if _, err := exec.LookPath("git"); err != nil {
 		results = append(results, mkCheck(group, "git", doctorFail, "not found in PATH"))
 	} else {
-		out, _ := exec.Command("git", "--version").Output()
+		out, _ := exec.Command("git", "--version").Output() //nolint:noctx // diagnostic
 		ver := strings.TrimSpace(string(out))
 		if ver == "" {
 			ver = "installed"
@@ -496,13 +497,13 @@ func findLobsterYAMLDown(dir string, exclude []string) []string {
 
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // best-effort scan; non-critical path
 	}
 
 	var found []string
 	_ = filepath.Walk(absDir, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // skip inaccessible files in walk
 		}
 		if info.IsDir() {
 			name := info.Name()
@@ -531,7 +532,7 @@ func findLobsterYAMLDown(dir string, exclude []string) []string {
 // doctorGitRoot returns the git repository root directory, or an empty string
 // if the working directory is not inside a git repository.
 func doctorGitRoot() string {
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output() //nolint:noctx // diagnostic helper, no context available
 	if err != nil {
 		return ""
 	}
@@ -571,7 +572,7 @@ func renderDoctorChecks(checks []doctorCheck) string {
 			default:
 				icon = ui.StyleError.Render(ui.IconCross)
 			}
-			b.WriteString(fmt.Sprintf("  %s  %-24s%s\n", icon, c.Label, ui.StyleMuted.Render(c.Detail)))
+			fmt.Fprintf(&b, "  %s  %-24s%s\n", icon, c.Label, ui.StyleMuted.Render(c.Detail))
 		}
 		b.WriteString("\n")
 	}

@@ -7,13 +7,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	planv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/plan"
 	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
 	"github.com/bcp-technology-ug/lobster/internal/runner"
 	"github.com/bcp-technology-ug/lobster/internal/store"
 	"github.com/bcp-technology-ug/lobster/internal/ui"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // newPlanCommand creates the `lobster plan` command wired to a real Planner.
@@ -31,7 +32,7 @@ func newPlanCommand(v *viper.Viper) *cobra.Command {
 	cmd.Flags().StringSlice("tags", nil, "filter scenarios by tag expression (e.g. @smoke)")
 	cmd.Flags().String("scenario-regex", "", "filter scenarios by name regex")
 	cmd.Flags().StringSlice("compose-profile", nil, "compose profile(s) to activate")
-	cmd.Flags().Bool("persist", false, "persist the plan as an artifact in the store")
+	cmd.Flags().Bool("persist", false, "persist the plan as an artefact in the store")
 	cmd.Flags().String("format", "text", "output format: text|json")
 	cmd.Flags().String("out", "", "write plan JSON to file (implies --format json)")
 	addPersistenceFlags(cmd.Flags())

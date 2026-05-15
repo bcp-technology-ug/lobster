@@ -15,7 +15,7 @@ import (
 	"github.com/bcp-technology-ug/lobster/internal/store/sqlite"
 )
 
-// Config controls SQLite setup and migration behavior.
+// Config controls SQLite setup and migration behaviour.
 type Config struct {
 	SQLitePath    string
 	MigrationsDir string
@@ -36,7 +36,7 @@ type Store struct {
 	Integrations *integrationstore.Queries
 }
 
-// Open initializes SQLite, applies migration policy, and wires query sets.
+// Open initialises SQLite, applies migration policy, and wires query sets.
 func Open(ctx context.Context, cfg Config) (*Store, error) {
 	db, err := sqlite.Open(ctx, sqlite.OpenOptions{
 		Path:        cfg.SQLitePath,

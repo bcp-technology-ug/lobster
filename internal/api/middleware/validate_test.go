@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
-	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
-	"github.com/bcp-technology-ug/lobster/internal/api/middleware"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	runv1 "github.com/bcp-technology-ug/lobster/gen/go/lobster/v1/run"
+	"github.com/bcp-technology-ug/lobster/internal/api/middleware"
 )
 
 // passthroughHandler is a gRPC unary handler that always returns nil.
