@@ -2,6 +2,12 @@
 #
 # Overrides ports to avoid conflicts with a local lobsterd on default ports,
 # and uses /tmp for the SQLite database so no named volume is needed.
+#
+# Additional services (used by @docker-tagged feature tests):
+#   httpbin       — mccutchen/go-httpbin on host port 19780 (bearer auth,
+#                   basic auth, form echo, redirects, response headers, etc.)
+#   fixture-server — python3 http.server on host port 19790 serving static
+#                   JSON fixtures created at container start-up.
 
 services:
   lobsterd:
@@ -19,3 +25,34 @@ services:
     ports:
       - "29443:9443"
       - "28080:8080"
+
+  httpbin:
+    image: mccutchen/go-httpbin:2.22.1
+    ports:
+      - "19780:8080"
+    # No healthcheck: lobster treats a running container as healthy when no
+    # HEALTHCHECK is defined (see orchestration/docker.go:waitAllHealthy).
+
+  fixture-server:
+    image: python:3-alpine
+    command:
+      - sh
+      - "-c"
+      - |
+        mkdir -p /srv
+        printf '%s' '{"token":"abc123","expires":3600}' > /srv/token.json
+        printf '%s' '{"count":42}' > /srv/count.json
+        printf '%s' '{"name":"alice-42","age":30,"score":95.5,"active":true,"role":"admin","meta":null,"tags":["admin","editor","viewer"],"items":[{"id":"item-001","qty":5},{"id":"item-002","qty":10}]}' > /srv/payload.json
+        exec python3 -m http.server 80 --directory /srv
+    ports:
+      - "19790:80"
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:80/payload.json')"
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 10s

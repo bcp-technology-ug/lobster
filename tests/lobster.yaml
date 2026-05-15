@@ -18,6 +18,8 @@ compose:
 variables:
   LOBSTERD_ADDR: "localhost:29443"
   LOBSTERD_HTTP_URL: "http://localhost:28080"
+  HTTPBIN_URL: "http://localhost:19780"
+  FIXTURE_URL: "http://localhost:19790"
 
 persistence:
   migrations:

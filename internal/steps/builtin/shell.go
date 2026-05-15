@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -96,6 +97,37 @@ func registerShellSteps(r *steps.Registry) error {
 		{
 			`the output should not be empty`,
 			stepAssertOutputNotEmpty,
+		},
+		// Regex assertions
+		{
+			`the output should match "((?:[^"\\]|\\.)*)"`,
+			stepAssertOutputMatches,
+		},
+		{
+			`the output should not match "((?:[^"\\]|\\.)*)"`,
+			stepAssertOutputNotMatches,
+		},
+		{
+			`the stderr should match "((?:[^"\\]|\\.)*)"`,
+			stepAssertStderrMatches,
+		},
+		{
+			`the stderr should not match "((?:[^"\\]|\\.)*)"`,
+			stepAssertStderrNotMatches,
+		},
+		// Environment and directory
+		{
+			`I set environment variable "([^"]+)" to "([^"]+)"`,
+			stepSetEnvVar,
+		},
+		{
+			`I change directory to "((?:[^"\\]|\\.)*)"`,
+			stepChangeDirectory,
+		},
+		// Exit code storage
+		{
+			`I store the exit code in variable "([^"]+)"`,
+			stepStoreExitCode,
 		},
 	}
 	for _, d := range defs {
@@ -324,5 +356,95 @@ func stepGenerateWorkspaceID(ctx *steps.ScenarioContext, _ ...string) error {
 		return fmt.Errorf("generate workspace id: %w", err)
 	}
 	ctx.Variables["__workspace_id"] = "test-" + hex.EncodeToString(b)
+	return nil
+}
+
+// stepAssertOutputMatches handles: the output should match "REGEX"
+func stepAssertOutputMatches(ctx *steps.ScenarioContext, args ...string) error {
+	pattern := unescapeArg(args[0])
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return fmt.Errorf("invalid regex %q: %w", pattern, err)
+	}
+	if !re.MatchString(ctx.Variables[varShellStdout]) {
+		e := fmt.Errorf("output does not match regex %q\noutput: %s", pattern, ctx.Variables[varShellStdout])
+		return softOrHard(ctx, e)
+	}
+	return nil
+}
+
+// stepAssertOutputNotMatches handles: the output should not match "REGEX"
+func stepAssertOutputNotMatches(ctx *steps.ScenarioContext, args ...string) error {
+	pattern := unescapeArg(args[0])
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return fmt.Errorf("invalid regex %q: %w", pattern, err)
+	}
+	if re.MatchString(ctx.Variables[varShellStdout]) {
+		e := fmt.Errorf("output unexpectedly matches regex %q", pattern)
+		return softOrHard(ctx, e)
+	}
+	return nil
+}
+
+// stepAssertStderrMatches handles: the stderr should match "REGEX"
+func stepAssertStderrMatches(ctx *steps.ScenarioContext, args ...string) error {
+	pattern := unescapeArg(args[0])
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return fmt.Errorf("invalid regex %q: %w", pattern, err)
+	}
+	if !re.MatchString(ctx.Variables[varShellStderr]) {
+		e := fmt.Errorf("stderr does not match regex %q\nstderr: %s", pattern, ctx.Variables[varShellStderr])
+		return softOrHard(ctx, e)
+	}
+	return nil
+}
+
+// stepAssertStderrNotMatches handles: the stderr should not match "REGEX"
+func stepAssertStderrNotMatches(ctx *steps.ScenarioContext, args ...string) error {
+	pattern := unescapeArg(args[0])
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return fmt.Errorf("invalid regex %q: %w", pattern, err)
+	}
+	if re.MatchString(ctx.Variables[varShellStderr]) {
+		e := fmt.Errorf("stderr unexpectedly matches regex %q", pattern)
+		return softOrHard(ctx, e)
+	}
+	return nil
+}
+
+// stepSetEnvVar handles: I set environment variable "NAME" to "VALUE"
+//
+// The value is stored in ctx.Variables so it is automatically injected into
+// subsequent shell commands (runAndCapture injects all Variables as env vars).
+func stepSetEnvVar(ctx *steps.ScenarioContext, args ...string) error {
+	ctx.Variables[args[0]] = args[1]
+	return nil
+}
+
+// stepChangeDirectory handles: I change directory to "PATH"
+//
+// The previous directory is saved in __workdir if not already set (preserving
+// compatibility with stepNewTempDir).
+func stepChangeDirectory(ctx *steps.ScenarioContext, args ...string) error {
+	path := unescapeArg(args[0])
+	if ctx.Variables[varWorkDir] == "" {
+		orig, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("getwd: %w", err)
+		}
+		ctx.Variables[varWorkDir] = orig
+	}
+	if err := os.Chdir(path); err != nil {
+		return fmt.Errorf("chdir to %q: %w", path, err)
+	}
+	return nil
+}
+
+// stepStoreExitCode handles: I store the exit code in variable "NAME"
+func stepStoreExitCode(ctx *steps.ScenarioContext, args ...string) error {
+	ctx.Variables[args[0]] = ctx.Variables[varShellExitCode]
 	return nil
 }

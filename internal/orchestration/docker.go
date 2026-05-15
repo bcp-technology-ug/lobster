@@ -12,6 +12,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	dockerimage "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/pkg/stdcopy"
 	"google.golang.org/grpc/codes"
@@ -218,6 +219,11 @@ func (o *DockerOrchestrator) ensureContainer(ctx context.Context, projectName, w
 	containerName := fmt.Sprintf("%s-%s-1", projectName, serviceName)
 	networkName := projectName + "_default"
 
+	// Pull the image if it is not already present locally.
+	if err := o.ensureImage(ctx, svc.Image); err != nil {
+		return fmt.Errorf("pull image %q: %w", svc.Image, err)
+	}
+
 	labels := map[string]string{
 		labelProject:   projectName,
 		labelService:   serviceName,
@@ -265,6 +271,23 @@ func (o *DockerOrchestrator) ensureContainer(ctx context.Context, projectName, w
 		return fmt.Errorf("create container %q: %w", containerName, err)
 	}
 	return o.cli.ContainerStart(ctx, resp.ID, container.StartOptions{})
+}
+
+// ensureImage pulls the image if it is not already present in the local daemon.
+func (o *DockerOrchestrator) ensureImage(ctx context.Context, image string) error {
+	if image == "" {
+		return nil
+	}
+	_, _, err := o.cli.ImageInspectWithRaw(ctx, image)
+	if err == nil {
+		return nil // already present
+	}
+	rc, pullErr := o.cli.ImagePull(ctx, image, dockerimage.PullOptions{})
+	if pullErr != nil {
+		return pullErr
+	}
+	_, _ = io.Copy(io.Discard, rc)
+	return rc.Close()
 }
 
 func (o *DockerOrchestrator) findContainer(ctx context.Context, projectName, serviceName string) (*container.Summary, error) {

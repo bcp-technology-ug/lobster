@@ -29,6 +29,15 @@ func Register(r *steps.Registry) error {
 	if err := registerAssertSteps(r); err != nil {
 		return err
 	}
+	if err := registerVarSteps(r); err != nil {
+		return err
+	}
+	if err := registerWaitSteps(r); err != nil {
+		return err
+	}
+	if err := registerGRPCSteps(r); err != nil {
+		return err
+	}
 	return nil
 }
 

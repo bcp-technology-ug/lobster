@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -28,6 +29,15 @@ func registerServiceSteps(r *steps.Registry) error {
 		{
 			`I wait up to (\d+)s? for URL "([^"]+)" to be reachable`,
 			stepWaitForURL,
+		},
+		// TCP port checks
+		{
+			`the TCP port "([^"]+)" on "([^"]+)" should be open`,
+			stepTCPPortOpen,
+		},
+		{
+			`I wait up to (\d+)s? for TCP port "([^"]+)" on "([^"]+)" to be open`,
+			stepWaitForTCPPort,
 		},
 	}
 	for _, d := range defs {
@@ -110,4 +120,42 @@ func checkServiceURL(ctx *steps.ScenarioContext, url string) error {
 		return fmt.Errorf("service at %s responded with status %d", url, resp.StatusCode)
 	}
 	return nil
+}
+
+// stepTCPPortOpen handles: the TCP port "PORT" on "HOST" should be open
+func stepTCPPortOpen(ctx *steps.ScenarioContext, args ...string) error {
+	port := args[0]
+	host := args[1]
+	addr := net.JoinHostPort(host, port)
+	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+	if err != nil {
+		e := fmt.Errorf("TCP port %s on %s is not open: %w", port, host, err)
+		return softOrHard(ctx, e)
+	}
+	_ = conn.Close()
+	return nil
+}
+
+// stepWaitForTCPPort handles: I wait up to Ns for TCP port "PORT" on "HOST" to be open
+func stepWaitForTCPPort(_ *steps.ScenarioContext, args ...string) error {
+	var timeoutSecs int
+	if _, err := fmt.Sscanf(args[0], "%d", &timeoutSecs); err != nil {
+		return fmt.Errorf("invalid timeout %q", args[0])
+	}
+	port := args[1]
+	host := args[2]
+	addr := net.JoinHostPort(host, port)
+
+	deadline := time.Now().Add(time.Duration(timeoutSecs) * time.Second)
+	for {
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("TCP port %s on %s did not open within %ds", port, host, timeoutSecs)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }

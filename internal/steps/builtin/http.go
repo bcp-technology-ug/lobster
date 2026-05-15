@@ -2,11 +2,16 @@ package builtin
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bcp-technology-ug/lobster/internal/steps"
 )
@@ -65,6 +70,48 @@ func registerHTTPSteps(r *steps.Registry) error {
 		{
 			`I store the response body in variable "([^"]+)"`,
 			stepStoreBodyInVar,
+		},
+		// Auth helpers
+		{
+			`I set the bearer token "([^"]+)"`,
+			stepSetBearerToken,
+		},
+		{
+			`I set the basic auth username "([^"]+)" and password "([^"]+)"`,
+			stepSetBasicAuth,
+		},
+		// Form data
+		{
+			`I send a (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) request to "([^"]+)" with form data:`,
+			stepSendRequestWithFormData,
+		},
+		// Regex body assertions
+		{
+			`the response body should match "([^"]+)"`,
+			stepAssertBodyMatches,
+		},
+		{
+			`the response body should not match "([^"]+)"`,
+			stepAssertBodyNotMatches,
+		},
+		// Regex header assertion
+		{
+			`the response header "([^"]+)" should match "([^"]+)"`,
+			stepAssertResponseHeaderMatches,
+		},
+		// Response time assertion
+		{
+			`the response time should be less than (\d+)ms`,
+			stepAssertResponseTimeLessThan,
+		},
+		// Redirect control
+		{
+			`I follow redirects`,
+			stepFollowRedirects,
+		},
+		{
+			`I do not follow redirects`,
+			stepDoNotFollowRedirects,
 		},
 	}
 	for _, d := range defs {
@@ -224,9 +271,148 @@ func stepStoreBodyInVar(ctx *steps.ScenarioContext, args ...string) error {
 	return nil
 }
 
+// stepSetBearerToken handles: I set the bearer token "TOKEN"
+func stepSetBearerToken(ctx *steps.ScenarioContext, args ...string) error {
+	if ctx.DefaultHeaders == nil {
+		ctx.DefaultHeaders = make(map[string]string)
+	}
+	ctx.DefaultHeaders["Authorization"] = "Bearer " + args[0]
+	return nil
+}
+
+// stepSetBasicAuth handles: I set the basic auth username "USER" and password "PASS"
+func stepSetBasicAuth(ctx *steps.ScenarioContext, args ...string) error {
+	if ctx.DefaultHeaders == nil {
+		ctx.DefaultHeaders = make(map[string]string)
+	}
+	creds := base64.StdEncoding.EncodeToString([]byte(args[0] + ":" + args[1]))
+	ctx.DefaultHeaders["Authorization"] = "Basic " + creds
+	return nil
+}
+
+// stepSendRequestWithFormData handles:
+//
+//	I send a METHOD request to "PATH" with form data: (DataTable)
+//
+// The DataTable must be a two-column key/value table (header row optional).
+func stepSendRequestWithFormData(ctx *steps.ScenarioContext, args ...string) error {
+	method := strings.ToUpper(args[0])
+	path := args[1]
+
+	form := url.Values{}
+	if ctx.CurrentStep != nil && ctx.CurrentStep.DataTable != nil {
+		for _, row := range ctx.CurrentStep.DataTable.Rows {
+			if len(row) < 2 {
+				continue
+			}
+			// Skip header row if it looks like a header (key == "key", "field", "param", etc.)
+			if row[0] == "key" || row[0] == "field" || row[0] == "param" || row[0] == "name" {
+				continue
+			}
+			form.Set(row[0], row[1])
+		}
+	}
+	return doRequest(ctx, method, path, []byte(form.Encode()), "application/x-www-form-urlencoded")
+}
+
+func stepAssertBodyMatches(ctx *steps.ScenarioContext, args ...string) error {
+	re, err := regexp.Compile(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid regex %q: %w", args[0], err)
+	}
+	if !re.Match(ctx.LastBody) {
+		e := fmt.Errorf("response body does not match regex %q", args[0])
+		return softOrHard(ctx, e)
+	}
+	return nil
+}
+
+func stepAssertBodyNotMatches(ctx *steps.ScenarioContext, args ...string) error {
+	re, err := regexp.Compile(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid regex %q: %w", args[0], err)
+	}
+	if re.Match(ctx.LastBody) {
+		e := fmt.Errorf("response body unexpectedly matches regex %q", args[0])
+		return softOrHard(ctx, e)
+	}
+	return nil
+}
+
+func stepAssertResponseHeaderMatches(ctx *steps.ScenarioContext, args ...string) error {
+	key := args[0]
+	pattern := args[1]
+	if ctx.LastResponse == nil {
+		return fmt.Errorf("no HTTP response received")
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return fmt.Errorf("invalid regex %q: %w", pattern, err)
+	}
+	got := ctx.LastResponse.Header.Get(key)
+	if !re.MatchString(got) {
+		e := fmt.Errorf("response header %q (%q) does not match regex %q", key, got, pattern)
+		return softOrHard(ctx, e)
+	}
+	return nil
+}
+
+// stepAssertResponseTimeLessThan handles: the response time should be less than Nms
+//
+// Requires that the last request recorded a response time in
+// ctx.Variables["__last_response_time_ms"].
+func stepAssertResponseTimeLessThan(ctx *steps.ScenarioContext, args ...string) error {
+	limitMs, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid millisecond value %q", args[0])
+	}
+	raw := ctx.Variables[varLastResponseTimeMs]
+	if raw == "" {
+		return fmt.Errorf("no response time recorded; make an HTTP request first")
+	}
+	got, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fmt.Errorf("corrupt response time value %q", raw)
+	}
+	if got >= limitMs {
+		e := fmt.Errorf("response time %dms is not less than %dms", got, limitMs)
+		return softOrHard(ctx, e)
+	}
+	return nil
+}
+
+// stepFollowRedirects restores the default redirect-following behaviour.
+func stepFollowRedirects(ctx *steps.ScenarioContext, _ ...string) error {
+	if ctx.HTTPClient == nil {
+		ctx.HTTPClient = http.DefaultClient
+	}
+	ctx.HTTPClient = &http.Client{
+		Timeout:       ctx.HTTPClient.Timeout,
+		Transport:     ctx.HTTPClient.Transport,
+		CheckRedirect: nil, // default: follow up to 10 redirects
+	}
+	return nil
+}
+
+// stepDoNotFollowRedirects configures the HTTP client to return on any redirect.
+func stepDoNotFollowRedirects(ctx *steps.ScenarioContext, _ ...string) error {
+	base := ctx.HTTPClient
+	if base == nil {
+		base = http.DefaultClient
+	}
+	ctx.HTTPClient = &http.Client{
+		Timeout:   base.Timeout,
+		Transport: base.Transport,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	return nil
+}
+
 // doRequest performs an HTTP request and stores the response on ctx.
 func doRequest(ctx *steps.ScenarioContext, method, path string, body []byte, contentType string) error {
-	url := buildURL(ctx.BaseURL, path)
+	reqURL := buildURL(ctx.BaseURL, path)
 	client := ctx.HTTPClient
 	if client == nil {
 		client = http.DefaultClient
@@ -237,9 +423,9 @@ func doRequest(ctx *steps.ScenarioContext, method, path string, body []byte, con
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequest(method, url, bodyReader)
+	req, err := http.NewRequest(method, reqURL, bodyReader)
 	if err != nil {
-		return fmt.Errorf("build request %s %s: %w", method, url, err)
+		return fmt.Errorf("build request %s %s: %w", method, reqURL, err)
 	}
 	for k, v := range ctx.DefaultHeaders {
 		req.Header.Set(k, v)
@@ -248,9 +434,11 @@ func doRequest(ctx *steps.ScenarioContext, method, path string, body []byte, con
 		req.Header.Set("Content-Type", contentType)
 	}
 
+	start := time.Now()
 	resp, err := client.Do(req)
+	elapsed := time.Since(start)
 	if err != nil {
-		return fmt.Errorf("send %s %s: %w", method, url, err)
+		return fmt.Errorf("send %s %s: %w", method, reqURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -262,8 +450,13 @@ func doRequest(ctx *steps.ScenarioContext, method, path string, body []byte, con
 	ctx.LastRequest = req
 	ctx.LastResponse = resp
 	ctx.LastBody = respBody
+	ctx.Variables[varLastResponseTimeMs] = strconv.FormatInt(elapsed.Milliseconds(), 10)
 	return nil
 }
+
+// varLastResponseTimeMs is stored in Variables after each HTTP request so the
+// response-time assertion step can read it.
+const varLastResponseTimeMs = "__last_response_time_ms"
 
 // buildURL joins a base URL and a path, avoiding double slashes.
 func buildURL(base, path string) string {
