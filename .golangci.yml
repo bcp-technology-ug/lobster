@@ -56,33 +56,34 @@ linters:
     - godox            # TODO/FIXME comments are fine.
     - exhaustive       # Not required to handle all enum cases everywhere.
 
-linters-settings:
-  # ── errcheck ────────────────────────────────────────────────────────────────
-  errcheck:
+linters:
+  settings:
+    # ── errcheck ──────────────────────────────────────────────────────────────
+    errcheck:
     check-type-assertions: true
     check-blank: true
 
-  # ── gosec ───────────────────────────────────────────────────────────────────
-  gosec:
+    # ── gosec ────────────────────────────────────────────────────────────────
+    gosec:
     excludes:
       - G115  # integer overflow: acceptable for non-crypto counters
     config:
       global:
         audit: true
 
-  # ── gci ─────────────────────────────────────────────────────────────────────
-  gci:
+    # ── gci ──────────────────────────────────────────────────────────────────
+    gci:
     sections:
       - standard
       - default
       - prefix(github.com/bcp-technology-ug/lobster)
 
-  # ── goimports ───────────────────────────────────────────────────────────────
-  goimports:
+    # ── goimports ────────────────────────────────────────────────────────────
+    goimports:
     local-prefixes: github.com/bcp-technology-ug/lobster
 
-  # ── revive ──────────────────────────────────────────────────────────────────
-  revive:
+    # ── revive ───────────────────────────────────────────────────────────────
+    revive:
     rules:
       - name: exported
         disabled: true   # Allow unexported names without doc comments in tests.
@@ -99,12 +100,12 @@ linters-settings:
       - name: unused-parameter
         severity: warning
 
-  # ── misspell ────────────────────────────────────────────────────────────────
-  misspell:
+    # ── misspell ─────────────────────────────────────────────────────────────
+    misspell:
     locale: US
 
-  # ── exhaustruct ─────────────────────────────────────────────────────────────
-  exhaustruct:
+    # ── exhaustruct ──────────────────────────────────────────────────────────
+    exhaustruct:
     # Only enforce exhaustive struct initialization where explicitly opted-in
     # with a `//exhaustruct:enforce` comment on the struct type.
     include: []
@@ -113,41 +114,42 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
 
-  exclude-rules:
-    # Test files: relax several rules that are too strict for test code.
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - exhaustruct
-        - unparam
+  exclusions:
+    rules:
+      # Test files: relax several rules that are too strict for test code.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - exhaustruct
+          - unparam
 
-    # Generated code: skip all linting.
-    - path: ^gen/
-      linters:
-        - revive
-        - godot
-        - gci
-        - goimports
-        - gosec
-        - unused
+      # Generated code: skip all linting.
+      - path: ^gen/
+        linters:
+          - revive
+          - godot
+          - gci
+          - goimports
+          - gosec
+          - unused
 
-    # Generated sqlc code.
-    - path: ^gen/sqlc/
-      text: ".*"
-      linters:
-        - revive
-        - godot
-        - stylecheck
-        - unused
+      # Generated sqlc code.
+      - path: ^gen/sqlc/
+        text: ".*"
+        linters:
+          - revive
+          - godot
+          - stylecheck
+          - unused
 
-    # Protobuf generated code.
-    - path: ^gen/go/
-      text: ".*"
-      linters:
-        - revive
-        - godot
-        - stylecheck
+      # Protobuf generated code.
+      - path: ^gen/go/
+        text: ".*"
+        linters:
+          - revive
+          - godot
+          - stylecheck
         - unused
 
     # Migration SQL embeds: the embed.go files are trivial.
