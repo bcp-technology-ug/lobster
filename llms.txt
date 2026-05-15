@@ -1,0 +1,33 @@
+# Lobster
+
+> Lobster is a CLI-first BDD end-to-end test runner. Write Gherkin `.feature` files using built-in step patterns and execute them against real infrastructure via Docker Compose. No custom test code required for the common case.
+
+Important notes:
+
+- Always run `lobster steps --format markdown` before writing any feature file — this is the only authoritative list of available step patterns.
+- Step text must match a registered pattern exactly; lobster uses regexp matching and returns `ErrUndefined` for mismatches.
+- The recommended workflow is: `lobster steps` → write → `lobster validate` → `lobster lint` → `lobster plan` → `lobster run`.
+
+## Docs
+
+- [Getting started](docs/getting-started.md): Installation, project init, and first run
+- [Step definitions](docs/step-definitions.md): All built-in steps with examples — HTTP, Shell, Filesystem, Service, gRPC, Variables, Wait/Retry, JSON assertions
+- [Configuration](docs/configuration.md): Full `lobster.yaml` schema reference with defaults
+- [Concepts](docs/concepts.md): BDD fundamentals, Gherkin anatomy, execution model, tag filtering
+- [Hooks](docs/hooks.md): BeforeSuite/AfterSuite/BeforeScenario/AfterScenario lifecycle hooks
+- [Integrations](docs/integrations.md): Keycloak, custom adapters, service reset
+- [Architecture](docs/architecture.md): High-level design — local vs daemon mode, execution flow
+- [CLI reference](docs/cli-reference.md): Every command and flag
+- [AI agent guide](AGENTS.md): Full agent bootstrap guide (step catalog, workflow, examples)
+- [AI integration docs](docs/ai-agents.md): MCP server setup, VS Code/Claude Code/Cursor config, prompt files
+
+## Examples
+
+- [Example features](tests/features/): Real `.feature` files covering all step categories
+- [Test config](tests/lobster.yaml): Reference `lobster.yaml` for a real project
+
+## Optional
+
+- [Persistence](docs/persistence.md): SQLite storage, retention policies, run history
+- [CI/CD integration](docs/ci-cd.md): GitHub Actions, GitLab CI, exit codes, JUnit reports
+- [Docker Compose integration](docs/docker-compose-integration.md): Stack lifecycle, profiles, migrations

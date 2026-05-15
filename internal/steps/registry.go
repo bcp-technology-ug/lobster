@@ -21,8 +21,9 @@ type StepHandler func(ctx *ScenarioContext, args ...string) error
 
 // StepDef is a compiled step definition: pattern + handler.
 type StepDef struct {
-	Pattern *regexp.Regexp
-	Handler StepHandler
+	Pattern    *regexp.Regexp
+	RawPattern string // original pattern string as passed to Register
+	Handler    StepHandler
 	// Source is a human-readable hint to the registration site (e.g. "builtin:http").
 	Source string
 }
@@ -57,8 +58,23 @@ func (r *Registry) Register(pattern string, handler StepHandler, source string) 
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.defs = append(r.defs, &StepDef{Pattern: re, Handler: handler, Source: source})
+	r.defs = append(r.defs, &StepDef{
+		Pattern:    re,
+		RawPattern: pattern,
+		Handler:    handler,
+		Source:     source,
+	})
 	return nil
+}
+
+// Defs returns a snapshot of all registered step definitions.
+// The returned slice is a shallow copy and safe to read after the call.
+func (r *Registry) Defs() []*StepDef {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*StepDef, len(r.defs))
+	copy(out, r.defs)
+	return out
 }
 
 // Match finds the single step definition that matches stepText.

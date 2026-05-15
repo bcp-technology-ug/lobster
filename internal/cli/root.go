@@ -69,6 +69,8 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newDoctorCommand(v))
 	root.AddCommand(newTUICommand(v))
 	root.AddCommand(newCoverageCommand(v))
+	root.AddCommand(newStepsCommand())
+	root.AddCommand(newMCPCommand())
 
 	return root
 }
