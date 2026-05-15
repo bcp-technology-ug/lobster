@@ -1,5 +1,13 @@
 # Lobster
 
+```
+   ≋     ≋
+  (◕  ◡  ◕)
+ ═╡ ▓▓▓▓▓ ╞═
+  ╲ ▓▓▓▓▓ ╱
+   ╙─────╜
+```
+
 > Lobster is a CLI-first BDD end-to-end test runner. Write Gherkin `.feature` files using built-in step patterns and execute them against real infrastructure via Docker Compose. No custom test code required for the common case.
 
 Important notes:

@@ -1,6 +1,27 @@
-# 🦞 lobster
+<div align="center">
+<pre>
+  ≋≋≋≋              ≋≋≋≋
+ /    \  (◕  ◡  ◕) /    \
+< ════╡  ────────  ╞════ >
+ \    ╚══▓▓▓▓▓▓▓══╝    /
+      ╔══▓▓▓▓▓▓▓══╗
+      ║  ▓▓▓▓▓▓▓  ║
+      ║  ▓▓▓▓▓▓▓  ║
+     ╔╝  ▓▓▓▓▓▓▓  ╚╗
+    ╔╝   ▓▓▓▓▓▓▓   ╚╗
+    ╙────╜   ╙────╜
 
-> **CLI-first, open-source, end-to-end BDD testing — no SaaS, no billing, no limits.**
+██╗      ██████╗ ██████╗ ███████╗████████╗███████╗██████╗
+██║     ██╔═══██╗██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗
+██║     ██║   ██║██████╔╝███████╗   ██║   █████╗  ██████╔╝
+██║     ██║   ██║██╔══██╗╚════██║   ██║   ██╔══╝  ██╔══██╗
+███████╗╚██████╔╝██████╔╝███████║   ██║   ███████╗██║  ██║
+╚══════╝ ╚═════╝ ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+</pre>
+
+**CLI-first, open-source, end-to-end BDD testing — no SaaS, no billing, no limits.**
+
+</div>
 
 Lobster is a Behaviour-Driven Development (BDD) testing framework built for engineers who want to test their *entire stack* — not just units or isolated services. Write human-readable Gherkin feature files, point lobster at your Docker Compose infrastructure, and let it orchestrate, execute, and report your full end-to-end test suite from the command line or inside CI.
 
