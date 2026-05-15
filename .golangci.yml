@@ -56,7 +56,6 @@ linters:
     - godox            # TODO/FIXME comments are fine.
     - exhaustive       # Not required to handle all enum cases everywhere.
 
-linters:
   settings:
     # ── errcheck ──────────────────────────────────────────────────────────────
     errcheck:
