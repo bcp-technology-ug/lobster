@@ -3,8 +3,10 @@ package orchestration
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"go.yaml.in/yaml/v3"
 )
@@ -44,7 +46,7 @@ type composeSvcDef struct {
 	User        string                 `yaml:"user"`
 	WorkingDir  string                 `yaml:"working_dir"`
 	Networks    interface{}            `yaml:"networks"` // ignored in v0.1 (single default)
-	Volumes     []interface{}          `yaml:"volumes"`  // ignored in v0.1
+	Volumes     []interface{}          `yaml:"volumes"`
 	EnvFile     interface{}            `yaml:"env_file"` // ignored in v0.1
 }
 
@@ -71,6 +73,9 @@ type resolvedService struct {
 	ExtraHosts   []string
 	User         string
 	WorkingDir   string
+	Binds        []string                // Docker bind-mount specs with resolved absolute paths
+	Restart      string                  // Docker restart policy name (e.g. "unless-stopped")
+	Healthcheck  *container.HealthConfig // nil = use image default
 }
 
 // parseComposeFiles parses one or more Compose files with last-wins merge
@@ -89,7 +94,11 @@ func parseComposeFiles(paths []string) (map[string]*resolvedService, error) {
 		if err := yaml.Unmarshal([]byte(expandComposeVars(string(data))), &spec); err != nil {
 			return nil, fmt.Errorf("parse compose file %q: %w", p, err)
 		}
+		composeDir := filepath.Dir(filepath.Clean(p))
 		for name, svc := range spec.Services {
+			// Resolve relative host paths to absolute before merging so that
+			// path resolution is always relative to the declaring file's directory.
+			svc.Volumes = resolveVolumeHostPaths(svc.Volumes, composeDir)
 			if existing, ok := merged[name]; ok {
 				mergeServiceDef(existing, svc)
 			} else {
@@ -147,6 +156,9 @@ func mergeServiceDef(dst, src *composeSvcDef) {
 	if src.WorkingDir != "" {
 		dst.WorkingDir = src.WorkingDir
 	}
+	if len(src.Volumes) > 0 {
+		dst.Volumes = append(dst.Volumes, src.Volumes...)
+	}
 }
 
 func resolveServiceDef(def *composeSvcDef) (*resolvedService, error) {
@@ -155,12 +167,15 @@ func resolveServiceDef(def *composeSvcDef) (*resolvedService, error) {
 		User:       def.User,
 		WorkingDir: def.WorkingDir,
 		ExtraHosts: def.ExtraHosts,
+		Restart:    def.Restart,
 	}
 	rs.Env = resolveEnv(def.Environment)
 	rs.Cmd = resolveStringOrSlice(def.Command)
 	rs.Entrypoint = resolveStringOrSlice(def.Entrypoint)
 	rs.DependsOn = resolveDependsOn(def.DependsOn)
 	rs.Labels = resolveLabels(def.Labels)
+	rs.Binds = resolveBinds(def.Volumes)
+	rs.Healthcheck = resolveHealthcheck(def.Healthcheck)
 
 	var err error
 	rs.PortBindings, rs.ExposedPorts, err = resolvePorts(def.Ports)
@@ -168,6 +183,96 @@ func resolveServiceDef(def *composeSvcDef) (*resolvedService, error) {
 		return nil, err
 	}
 	return rs, nil
+}
+
+// resolveHealthcheck converts a compose healthcheck definition to a Docker
+// HealthConfig.  Only the disable case is handled — a disable:true entry
+// produces {Test:["NONE"]} which instructs Docker to clear the image default.
+// Custom test commands are also forwarded verbatim so they override the image.
+func resolveHealthcheck(hc *composeSvcHealthcheck) *container.HealthConfig {
+	if hc == nil {
+		return nil // use image default
+	}
+	if hc.Disable {
+		return &container.HealthConfig{Test: []string{"NONE"}}
+	}
+	test := resolveStringOrSlice(hc.Test)
+	if len(test) == 0 {
+		return nil
+	}
+	cfg := &container.HealthConfig{Test: test}
+	if hc.Retries > 0 {
+		cfg.Retries = hc.Retries
+	}
+	return cfg
+}
+
+// resolveVolumeHostPaths rewrites relative host-side paths in volume entries
+// to absolute paths using composeDir as the base directory. Only entries in
+// short-string format ("HOST:CONTAINER" or "HOST:CONTAINER:MODE") are
+// modified; map-form or named-volume entries are passed through unchanged.
+func resolveVolumeHostPaths(vols []interface{}, composeDir string) []interface{} {
+	if len(vols) == 0 {
+		return vols
+	}
+	out := make([]interface{}, len(vols))
+	for i, v := range vols {
+		s, ok := v.(string)
+		if !ok {
+			out[i] = v
+			continue
+		}
+		out[i] = resolveBindHostPath(s, composeDir)
+	}
+	return out
+}
+
+// resolveBindHostPath resolves a relative host path in a bind-mount spec to an
+// absolute path. Named volumes (no path separator in the host portion) are
+// returned unchanged.
+func resolveBindHostPath(spec, composeDir string) string {
+	parts := strings.SplitN(spec, ":", 3)
+	if len(parts) < 2 {
+		return spec
+	}
+	host := parts[0]
+	// Named volumes contain no slash and don't start with . or /
+	if !filepath.IsAbs(host) && !strings.HasPrefix(host, ".") &&
+		!strings.Contains(host, "/") && !strings.Contains(host, "\\") {
+		return spec
+	}
+	if !filepath.IsAbs(host) {
+		host = filepath.Join(composeDir, host)
+	}
+	// Ensure the result is absolute even when composeDir itself was relative.
+	if abs, err := filepath.Abs(host); err == nil {
+		host = abs
+	}
+	parts[0] = host
+	return strings.Join(parts, ":")
+}
+
+// resolveBinds extracts Docker bind-mount strings from compose volume entries.
+// Named volumes and map-form entries are skipped; only bind mounts with
+// absolute host paths (after resolveVolumeHostPaths has run) are returned.
+func resolveBinds(vols []interface{}) []string {
+	var binds []string
+	for _, v := range vols {
+		s, ok := v.(string)
+		if !ok {
+			continue
+		}
+		parts := strings.SplitN(s, ":", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		// Only absolute host paths are bind mounts; named volumes are relative
+		if !filepath.IsAbs(parts[0]) {
+			continue
+		}
+		binds = append(binds, s)
+	}
+	return binds
 }
 
 func resolveEnv(v interface{}) []string {

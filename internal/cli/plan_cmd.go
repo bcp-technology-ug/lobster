@@ -15,6 +15,7 @@ import (
 	"github.com/bcp-technology-ug/lobster/internal/runner"
 	"github.com/bcp-technology-ug/lobster/internal/store"
 	"github.com/bcp-technology-ug/lobster/internal/ui"
+	lobstermigrations "github.com/bcp-technology-ug/lobster/migrations"
 )
 
 // newPlanCommand creates the `lobster plan` command wired to a real Planner.
@@ -89,7 +90,7 @@ func planCommand(cmd *cobra.Command, v *viper.Viper) error {
 	}
 	var st *store.Store
 	if persist && storeConfig.SQLitePath != "" {
-		st, err = store.Open(ctx, storeConfig)
+		st, err = store.OpenWithMigrationsFS(ctx, storeConfig, lobstermigrations.FS)
 		if err != nil {
 			return fmt.Errorf("open store: %w", err)
 		}

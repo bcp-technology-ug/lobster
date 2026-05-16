@@ -12,6 +12,7 @@ import (
 
 	"github.com/bcp-technology-ug/lobster/internal/store"
 	"github.com/bcp-technology-ug/lobster/internal/ui"
+	lobstermigrations "github.com/bcp-technology-ug/lobster/migrations"
 )
 
 func newConfigCommand(v *viper.Viper) *cobra.Command {
@@ -105,7 +106,7 @@ func newConfigCommand(v *viper.Viper) *cobra.Command {
 			if validate {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				st, err := store.Open(ctx, storeCfg)
+				st, err := store.OpenWithMigrationsFS(ctx, storeCfg, lobstermigrations.FS)
 				if err != nil {
 					_, _ = fmt.Fprint(cmd.OutOrStdout(),
 						ui.RenderError("Persistence validation failed", err.Error(),

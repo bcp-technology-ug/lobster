@@ -30,6 +30,7 @@ import (
 	"github.com/bcp-technology-ug/lobster/internal/store"
 	"github.com/bcp-technology-ug/lobster/internal/telemetry"
 	"github.com/bcp-technology-ug/lobster/internal/ui"
+	lobstermigrations "github.com/bcp-technology-ug/lobster/migrations"
 )
 
 // newRunCommand creates the `lobster run` command with full runner wiring.
@@ -313,7 +314,7 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 
 	// Config provider merges viper config, then applies --env overrides.
 	baseURL := v.GetString("http.base_url")
-	configVariables := v.GetStringMapString("variables")
+	configVariables := v.GetStringMapString("variables.suite")
 	configFn := func(_ context.Context, _, _ string) (*runner.RunConfig, error) {
 		vars := make(map[string]string, len(configVariables)+len(envMap))
 		for k, val := range configVariables {
@@ -349,6 +350,8 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	if len(composePaths) > 0 && !noCompose {
 		orchSetup := &orchestration.Setup{
 			ComposeFiles: composePaths,
+			ProjectName:  v.GetString("compose.project_name"),
+			WaitTimeout:  v.GetDuration("compose.wait.timeout"),
 			Profiles:     composeProfiles,
 		}
 		orchInstance, err := orchestration.New("", func(_ context.Context, _, _ string) (*orchestration.Setup, error) {
@@ -370,7 +373,7 @@ func runCommand(cmd *cobra.Command, v *viper.Viper, verbosity int) error {
 	}
 	var st *store.Store
 	if storeConfig.SQLitePath != "" {
-		st, err = store.Open(ctx, storeConfig)
+		st, err = store.OpenWithMigrationsFS(ctx, storeConfig, lobstermigrations.FS)
 		if err != nil {
 			_, _ = fmt.Fprint(cmd.ErrOrStderr(), ui.RenderError("Store error",
 				fmt.Sprintf("open store: %v", err), "", ""))

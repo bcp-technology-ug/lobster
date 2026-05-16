@@ -239,6 +239,7 @@ func (o *DockerOrchestrator) ensureContainer(ctx context.Context, projectName, w
 		Env:          svc.Env,
 		Labels:       labels,
 		ExposedPorts: svc.ExposedPorts,
+		Healthcheck:  svc.Healthcheck,
 	}
 	if len(svc.Cmd) > 0 {
 		cfg.Cmd = svc.Cmd
@@ -257,7 +258,8 @@ func (o *DockerOrchestrator) ensureContainer(ctx context.Context, projectName, w
 		NetworkMode:   container.NetworkMode(networkName),
 		PortBindings:  svc.PortBindings,
 		ExtraHosts:    svc.ExtraHosts,
-		RestartPolicy: container.RestartPolicy{Name: container.RestartPolicyDisabled},
+		Binds:         svc.Binds,
+		RestartPolicy: resolveRestartPolicy(svc.Restart),
 	}
 
 	netCfg := &network.NetworkingConfig{
@@ -271,6 +273,20 @@ func (o *DockerOrchestrator) ensureContainer(ctx context.Context, projectName, w
 		return fmt.Errorf("create container %q: %w", containerName, err)
 	}
 	return o.cli.ContainerStart(ctx, resp.ID, container.StartOptions{})
+}
+
+// resolveRestartPolicy maps a Compose restart string to a Docker RestartPolicy.
+func resolveRestartPolicy(policy string) container.RestartPolicy {
+	switch policy {
+	case "always":
+		return container.RestartPolicy{Name: container.RestartPolicyAlways}
+	case "unless-stopped":
+		return container.RestartPolicy{Name: container.RestartPolicyUnlessStopped}
+	case "on-failure":
+		return container.RestartPolicy{Name: container.RestartPolicyOnFailure}
+	default:
+		return container.RestartPolicy{Name: container.RestartPolicyDisabled}
+	}
 }
 
 // ensureImage pulls the image if it is not already present in the local daemon.
