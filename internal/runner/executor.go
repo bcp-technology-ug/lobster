@@ -673,8 +673,7 @@ func (r *Runner) executeStep(
 	// Expand ${VAR} references from suite and scenario variables before
 	// matching so steps like `I set the base URL to "${BASE_URL}"` resolve
 	// correctly without requiring each step handler to do its own expansion.
-	expandedStep := *step
-	expandedStep.Text = os.Expand(step.Text, func(key string) string {
+	expandVars := func(key string) string {
 		// Check exact case first, then lowercase (Viper lowercases config keys).
 		lower := strings.ToLower(key)
 		for _, m := range []map[string]string{scenCtx.Variables, scenCtx.SuiteVars} {
@@ -686,7 +685,30 @@ func (r *Runner) executeStep(
 			}
 		}
 		return "${" + key + "}"
-	})
+	}
+
+	expandedStep := *step
+	expandedStep.Text = os.Expand(step.Text, expandVars)
+
+	// Also expand variables in DocString content.
+	if step.DocString != nil {
+		ds := *step.DocString
+		ds.Content = os.Expand(step.DocString.Content, expandVars)
+		expandedStep.DocString = &ds
+	}
+
+	// Also expand variables in DataTable cells.
+	if step.DataTable != nil {
+		dt := &parser.DataTable{Rows: make([][]string, len(step.DataTable.Rows))}
+		for i, row := range step.DataTable.Rows {
+			expanded := make([]string, len(row))
+			for j, cell := range row {
+				expanded[j] = os.Expand(cell, expandVars)
+			}
+			dt.Rows[i] = expanded
+		}
+		expandedStep.DataTable = dt
+	}
 
 	stepDef, args, matchErr := reg.MatchStep(&expandedStep)
 	if matchErr != nil {
@@ -695,7 +717,7 @@ func (r *Runner) executeStep(
 		return sr
 	}
 
-	scenCtx.CurrentStep = step
+	scenCtx.CurrentStep = &expandedStep
 	execCtx := ctx
 	if cfg.StepTimeout > 0 {
 		var cancel context.CancelFunc

@@ -35,7 +35,7 @@ func registerHTTPSteps(r *steps.Registry) error {
 			stepSendRequestWithInlineBody,
 		},
 		{
-			`I set the request header "([^"]+)" to "([^"]+)"`,
+			`I set the request header "([^"]+)" to "([^"]*)"`,
 			stepSetRequestHeader,
 		},
 		{

@@ -114,8 +114,15 @@ func registerAssertSteps(r *steps.Registry) error {
 
 // jsonPath resolves a simple dot-separated JSON path against a parsed map.
 // Supports keys like "plans", "items.0.id", "plan.plan_id".
+// Also handles the standard JSONPath root selector prefix "$.".
 // Only supports map and array access; does not implement full JSONPath.
 func jsonPath(obj interface{}, path string) (interface{}, bool) {
+	// Strip leading "$." or bare "$" (standard JSONPath root selector).
+	path = strings.TrimPrefix(path, "$.")
+	if path == "$" || path == "" {
+		return obj, true
+	}
+
 	parts := strings.SplitN(path, ".", 2)
 	key := parts[0]
 
